@@ -1,10 +1,15 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BlackMoon Compiler</title>
+    <link rel="icon" type="image/x-icon" href="/static/blackmoon.ico">
+    <link rel="shortcut icon" type="image/x-icon" href="/static/blackmoon.ico">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.2/ace.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -41,12 +46,76 @@
                     <button id="saveButton" class="btn btn-warning">
                         <i class="fas fa-save"></i> Save
                     </button>
+                    <div class="profile-dropdown">
+                        <div id="profileButton" class="profile-button">
+                            <div class="profile-avatar" id="profileAvatar">
+                                <i class="fas fa-user"></i>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </header>
 
+        <div class="main-layout">
+            <aside class="file-sidebar">
+                <div class="sidebar-header">
+                    <h3><i class="fas fa-folder"></i> Files</h3>
+                    <div class="file-actions">
+                        <button id="newFileBtn" class="btn btn-sm btn-primary" title="New File">
+                            <i class="fas fa-file"></i>
+                        </button>
+                        <button id="newFolderBtn" class="btn btn-sm btn-secondary" title="New Folder">
+                            <i class="fas fa-folder-plus"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="file-tree" id="fileTree">
+                    <div class="empty-state">
+                        <i class="fas fa-folder-open"></i>
+                        <p>No project selected</p>
+                    </div>
+                </div>
+            </aside>
+
+            <main class="main-content">
+                <div class="editor-panel">
+                    <div class="editor-header">
+                        <div class="file-tabs" id="fileTabs">
+                            </div>
+                        <div class="editor-controls">
+                            </div>
+                    </div>
+                    <div class="editor-container">
+                        <div id="codeEditor"></div>
+                    </div>
+                </div>
+
+                <div class="panel-resizer" id="terminalResizer" role="separator" aria-label="Resize terminal" aria-orientation="vertical" tabindex="0"></div>
+
+                <div class="terminal-panel">
+                    <div class="terminal-header">
+                        <h3><i class="fas fa-terminal"></i> Terminal</h3>
+                        <div class="terminal-controls">
+                            <button id="clearTerminalBtn" class="btn btn-sm btn-outline">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
+                            <button id="toggleTerminalBtn" class="btn btn-sm btn-outline">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="terminal" id="terminal">
+                        <div id="terminal-container" class="terminal-container"></div>
+                    </div>
+                </div>
+            </main>
         </div>
 
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
     <script src="/static/script.js"></script>
 </body>
 </html>
