@@ -227,6 +227,98 @@ body {
     padding: 8px;
 }
 
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-secondary);
+}
+
+.empty-state i {
+    font-size: 2rem;
+    margin-bottom: 10px;
+    display: block;
+}
+
+.file-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s ease;
+}
+
+.file-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.file-item.active {
+    background: var(--accent-blue);
+    color: white;
+}
+
+.folder-item {
+    font-weight: 600;
+    color: var(--accent-orange);
+    cursor: pointer;
+}
+
+.folder-item i {
+    color: var(--accent-orange);
+}
+
+.folder-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.folder-item.active-folder {
+    background: rgba(255, 152, 0, 0.2);
+    border-left: 3px solid var(--accent-orange);
+}
+
+.folder-chevron {
+    transition: transform 0.2s ease;
+    font-size: 0.75rem;
+}
+
+.folder-chevron.expanded {
+    transform: rotate(90deg);
+}
+
+.folder-children {
+    padding-left: 20px;
+    max-height: 2000px;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.folder-children.collapsed {
+    max-height: 0;
+}
+
+.delete-icon {
+    margin-left: auto;
+    color: var(--text-tertiary);
+    font-size: 0.85rem;
+    opacity: 0;
+    transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.file-item:hover .delete-icon,
+.folder-item:hover .delete-icon {
+    opacity: 1;
+}
+
+.delete-icon:hover {
+    color: var(--accent-red);
+}
+
+.file-item i {
+    width: 16px;
+    text-align: center;
+}
+
 /* Main Content */
 .main-content {
     flex: 1;
@@ -234,4 +326,82 @@ body {
     flex-direction: column;
     overflow: hidden;
     min-height: 0; /* critical to prevent overflow pushing page */
+}
+
+/* Editor Panel */
+.editor-panel {
+    flex: 2; /* editor gets more space */
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-primary);
+    min-height: 0; /* allow flex parent to control height */
+}
+
+.editor-header {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    padding: 8px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.file-tabs {
+    display: flex;
+    gap: 2px;
+}
+
+.file-tab {
+    padding: 8px 16px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 4px 4px 0 0;
+}
+
+.file-tab.active {
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--bg-primary);
+}
+
+.file-tab:hover {
+    background: var(--bg-primary);
+}
+
+.file-tab .close-btn {
+    margin-left: 8px;
+    padding: 2px 4px;
+    border-radius: 2px;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.file-tab .close-btn:hover {
+    background: var(--accent-red);
+    color: white;
+}
+
+.editor-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.editor-container {
+    flex: 1 1 auto;
+    position: relative;
+    min-height: 0; /* avoid overflow */
+    overflow: hidden;
+}
+
+#codeEditor {
+    position: absolute;
+    inset: 0; /* top/right/bottom/left: 0 */
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
 }
