@@ -134,7 +134,25 @@
                     <div class="editor-container">
                         <div id="codeEditor"></div>
                     </div>
+                    <div class="error-panel" id="errorPanel">
+                        <div class="error-panel-header">
+                            <div class="error-count">
+                                <div class="error-count-item errors">
+                                    <i class="fas fa-times-circle"></i>
+                                    <span id="errorCount">0</span> Errors
+                                </div>
+                                <div class="error-count-item warnings">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <span id="warningCount">0</span> Warnings
+                                </div>
+                            </div>
+                            <button id="closeErrorPanelBtn" class="btn btn-sm btn-outline">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <ul class="error-list" id="errorList"></ul>
                     </div>
+                </div>
 
                 <div class="panel-resizer" id="terminalResizer" role="separator" aria-label="Resize terminal" aria-orientation="vertical" tabindex="0"></div>
 
@@ -242,6 +260,110 @@
                             <button type="submit" class="btn btn-primary">Create Folder</button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+
+        <div id="profileModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2><i class="fas fa-user-circle"></i> My Profile</h2>
+                    <button class="close-btn" id="closeProfileModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="profile-section-content">
+                        <div class="profile-preview">
+                            <div class="profile-pic-large" id="profilePicPreview">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <label for="profilePicInput" class="upload-btn">
+                                <i class="fas fa-camera"></i> Change Picture
+                            </label>
+                            <input type="file" id="profilePicInput" accept="image/*" style="display: none;">
+                        </div>
+                        <form id="profileForm">
+                            <div class="form-group">
+                                <label>Username:</label>
+                                <input type="text" id="profileUsernameDisplay" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label>Email:</label>
+                                <input type="text" id="profileEmailDisplay" readonly>
+                            </div>
+                            <div class="form-group bio-group">
+                                <label for="profileBio">
+                                    <i class="fas fa-pen-fancy"></i> About Me
+                                </label>
+                                <textarea id="profileBio" rows="6" maxlength="500" placeholder="Share your story, skills, or what makes you awesome... ✨"></textarea>
+                                <div class="bio-counter">
+                                    <span id="bioCharCount">0</span> / 500 characters
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" id="cancelProfile">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Save Profile</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="mySharesModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2><i class="fas fa-share-alt"></i> My Shared Files</h2>
+                    <button class="close-btn" id="closeMySharesModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="sharesList" class="shares-list">
+                        </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="shareLinkModal" class="modal">
+            <div class="modal-content small-modal">
+                <div class="modal-header">
+                    <h2><i class="fas fa-share-nodes"></i> Share File</h2>
+                    <button class="close-btn" id="closeShareLinkModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Share this file with anyone using the link below:</p>
+                    <div class="share-link-container">
+                        <input type="text" id="shareLinkInput" readonly>
+                        <button class="btn btn-primary" id="copyShareLinkBtn">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                    <p class="share-note"><i class="fas fa-info-circle"></i> Anyone with this link can view this file without logging in.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="settingsModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2><i class="fas fa-cog"></i> Settings</h2>
+                    <button class="close-btn" id="closeSettingsModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-section">
+                        <h3><i class="fas fa-robot"></i> AI Configuration</h3>
+                        <div class="ai-status" id="aiStatus">
+                            </div>
+                        <form id="apiKeyForm">
+                            <div class="form-group">
+                                <label for="geminiApiKey">Google Gemini API Key:</label>
+                                <input type="password" id="geminiApiKey" placeholder="Enter your Gemini API key">
+                                <small class="form-text">Get your free API key from <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a></small>
+                            </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" id="cancelSettings">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Save API Key</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
