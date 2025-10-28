@@ -6,9 +6,13 @@ class BlackMoonCompiler {
         this.currentProject = null;
         this.currentFile = null;
         this.openFiles = new Map();
+        this.ws = null;
+        this.wsConnecting = false;
+        this.isRunning = false;
         this.authToken = localStorage.getItem('authToken');
         this.fontSize = this._loadFontSize();
         this.currentFolder = null;
+        this.outputBuffer = '';
         
         this.init();
     }
@@ -50,19 +54,44 @@ class BlackMoonCompiler {
             wrap: false,
             showGutter: true,
             highlightActiveLine: true,
+            showInvisibles: false,
         });
 
-        // Keyboard shortcuts for save and run
+        // Keyboard shortcuts
         this.editor.commands.addCommand({
             name: 'save',
             bindKey: {win: 'Ctrl-S', mac: 'Command-S'},
             exec: () => this.saveCurrentFile()
         });
 
+        this.editor.commands.addCommand({
+            name: 'run',
+            bindKey: {win: 'F5', mac: 'F5'},
+            exec: () => this.runCode()
+        });
+
         // Handle window resize
         window.addEventListener('resize', () => {
             this.editor && this.editor.resize(true);
         });
+
+        // Update editor mode when language changes
+        document.getElementById('languageSelect').addEventListener('change', (e) => {
+            this.setEditorMode(e.target.value);
+        });
+    }
+
+    setEditorMode(language) {
+        const modeMap = {
+            'python': 'python',
+            'c': 'c_cpp',
+            'cpp': 'c_cpp',
+            'java': 'java',
+            'javascript': 'javascript',
+            'go': 'golang',
+            'rust': 'rust'
+        };
+        this.editor.session.setMode(`ace/mode/${modeMap[language] || 'text'}`);
     }
 
     setupEventListeners() {
@@ -73,8 +102,138 @@ class BlackMoonCompiler {
             }
         });
 
-        // Save button
+        // Buttons
         document.getElementById('saveButton').addEventListener('click', () => this.saveCurrentFile());
+        document.getElementById('runButton').addEventListener('click', () => {
+            if (this.isRunning) {
+                this.stopExecution();
+            } else {
+                this.runCode();
+            }
+        });
+    }
+
+    async runCode() {
+        const code = this.editor.getValue();
+        const language = document.getElementById('languageSelect').value;
+
+        if (!code.trim()) {
+            alert('Please enter some code first');
+            return;
+        }
+
+        // Clear previous output
+        this.clearOutput();
+        this.isRunning = true;
+        this.updateRunButton();
+
+        // Connect WebSocket if not connected
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            await this.connectWebSocket();
+        }
+
+        // Send code execution request
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({
+                action: 'run',
+                code: code,
+                language: language
+            }));
+        }
+    }
+
+    async connectWebSocket() {
+        if (this.wsConnecting) return;
+        this.wsConnecting = true;
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws?token=${this.authToken}`;
+
+        this.ws = new WebSocket(wsUrl);
+
+        this.ws.onopen = () => {
+            console.log('WebSocket connected');
+            this.wsConnecting = false;
+        };
+
+        this.ws.onmessage = (event) => {
+            this.handleWebSocketMessage(event.data);
+        };
+
+        this.ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            this.wsConnecting = false;
+        };
+
+        this.ws.onclose = () => {
+            console.log('WebSocket closed');
+            this.ws = null;
+            this.wsConnecting = false;
+            this.isRunning = false;
+            this.updateRunButton();
+        };
+
+        // Wait for connection
+        await new Promise((resolve) => {
+            const checkConnection = setInterval(() => {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    clearInterval(checkConnection);
+                    resolve();
+                }
+            }, 100);
+        });
+    }
+
+    handleWebSocketMessage(data) {
+        // Parse WebSocket messages and display output
+        if (data.startsWith('OUTPUT ')) {
+            const output = data.substring(7);
+            this.appendOutput(output);
+        } else if (data === 'EXECUTION_COMPLETE') {
+            this.isRunning = false;
+            this.updateRunButton();
+        } else if (data.startsWith('ERROR ')) {
+            const error = data.substring(6);
+            this.appendOutput(error, 'error');
+            this.isRunning = false;
+            this.updateRunButton();
+        }
+    }
+
+    stopExecution() {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send('STOP');
+        }
+        this.isRunning = false;
+        this.updateRunButton();
+    }
+
+    updateRunButton() {
+        const runButton = document.getElementById('runButton');
+        if (this.isRunning) {
+            runButton.textContent = '⏹ Stop';
+            runButton.classList.add('running');
+        } else {
+            runButton.textContent = '▶ Run';
+            runButton.classList.remove('running');
+        }
+    }
+
+    clearOutput() {
+        const output = document.getElementById('output');
+        output.textContent = '';
+        this.outputBuffer = '';
+    }
+
+    appendOutput(text, type = 'normal') {
+        const output = document.getElementById('output');
+        const span = document.createElement('span');
+        span.textContent = text;
+        if (type === 'error') {
+            span.style.color = '#ff6b6b';
+        }
+        output.appendChild(span);
+        output.scrollTop = output.scrollHeight;
     }
 
     _loadFontSize() {
@@ -164,7 +323,6 @@ class BlackMoonCompiler {
     }
 
     async openFile(filePath) {
-        // Load file content from server
         try {
             const response = await fetch(`/api/files/${this.currentProject}/${filePath}`, {
                 headers: { 'Authorization': `Bearer ${this.authToken}` }
