@@ -1,4 +1,6 @@
 import subprocess
+import tempfile
+import os
 import json
 from typing import Dict, Any
 
@@ -8,6 +10,10 @@ class CodeFormatter:
     def __init__(self):
         self.formatters = {
             'python': self._format_python,
+            'javascript': self._format_javascript,
+            'c': self._format_c,
+            'cpp': self._format_cpp,
+            'c++': self._format_cpp,
             'json': self._format_json,
         }
     
@@ -38,9 +44,21 @@ class CodeFormatter:
             }
     
     def _format_python(self, code: str) -> str:
-        """Format Python code using autopep8"""
+        """Format Python code using Black with autopep8 fallback"""
         try:
-            # Try autopep8 for Python formatting
+            # Try Black first (most popular Python formatter)
+            result = subprocess.run(
+                ['black', '--quiet', '--line-length', '88', '-'],
+                input=code,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0 and result.stdout:
+                return result.stdout
+            
+            # Fallback to autopep8
             result = subprocess.run(
                 ['autopep8', '--aggressive', '--aggressive', '-'],
                 input=code,
@@ -53,7 +71,73 @@ class CodeFormatter:
                 return result.stdout
         
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            # Tool not available, return original code
+            pass
+        
+        return code
+    
+    def _format_javascript(self, code: str) -> str:
+        """Format JavaScript code using prettier"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
+            f.write(code)
+            temp_path = f.name
+        
+        try:
+            # Try prettier
+            result = subprocess.run(
+                ['prettier', '--parser', 'babel', temp_path],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0 and result.stdout:
+                return result.stdout
+        
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        
+        finally:
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+        
+        return code
+    
+    def _format_c(self, code: str) -> str:
+        """Format C code using clang-format"""
+        try:
+            result = subprocess.run(
+                ['clang-format', '--style=LLVM'],
+                input=code,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0 and result.stdout:
+                return result.stdout
+        
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        
+        return code
+    
+    def _format_cpp(self, code: str) -> str:
+        """Format C++ code using clang-format"""
+        try:
+            result = subprocess.run(
+                ['clang-format', '--style=LLVM', '--assume-filename=file.cpp'],
+                input=code,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0 and result.stdout:
+                return result.stdout
+        
+        except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
         
         return code
