@@ -2,6 +2,7 @@ import subprocess
 import json
 import tempfile
 import os
+from pathlib import Path
 from typing import Dict, List, Any
 
 class CodeLinter:
@@ -14,6 +15,8 @@ class CodeLinter:
             'c': self._lint_c,
             'cpp': self._lint_cpp,
             'c++': self._lint_cpp,
+            'java': self._lint_java,
+            'go': self._lint_go,
         }
     
     def lint_code(self, code: str, language: str, filename: str = None) -> Dict[str, Any]:
@@ -58,7 +61,7 @@ class CodeLinter:
         return extensions.get(language, 'txt')
     
     def _lint_python(self, code: str, filename: str) -> List[Dict[str, Any]]:
-        """Lint Python code using flake8 with fallback"""
+        """Lint Python code using flake8 with fallback to syntax check"""
         errors = []
         
         # Create temporary file
@@ -67,7 +70,7 @@ class CodeLinter:
             temp_path = f.name
         
         try:
-            # Try flake8 first
+            # Try flake8 first (lighter and faster)
             try:
                 result = subprocess.run(
                     ['flake8', '--format=json', temp_path],
@@ -90,7 +93,7 @@ class CodeLinter:
                             })
             
             except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError):
-                # Fallback to syntax check
+                # Fallback: Try basic Python syntax check
                 try:
                     compile(code, filename, 'exec')
                 except SyntaxError as e:
@@ -104,6 +107,7 @@ class CodeLinter:
                     })
         
         finally:
+            # Cleanup
             try:
                 os.unlink(temp_path)
             except:
@@ -112,14 +116,16 @@ class CodeLinter:
         return errors
     
     def _lint_javascript(self, code: str, filename: str) -> List[Dict[str, Any]]:
-        """Lint JavaScript code using ESLint"""
+        """Lint JavaScript code"""
         errors = []
         
+        # Create temporary file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
             f.write(code)
             temp_path = f.name
         
         try:
+            # Try eslint
             try:
                 result = subprocess.run(
                     ['eslint', '--format=json', temp_path],
@@ -153,7 +159,7 @@ class CodeLinter:
         return errors
     
     def _lint_c(self, code: str, filename: str) -> List[Dict[str, Any]]:
-        """Lint C code using gcc syntax check"""
+        """Lint C code using gcc or clang"""
         errors = []
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.c', delete=False) as f:
@@ -161,7 +167,7 @@ class CodeLinter:
             temp_path = f.name
         
         try:
-            # Use gcc for syntax checking with warnings
+            # Try gcc syntax check
             result = subprocess.run(
                 ['gcc', '-fsyntax-only', '-Wall', '-Wextra', temp_path],
                 capture_output=True,
@@ -170,7 +176,6 @@ class CodeLinter:
             )
             
             if result.stderr:
-                # Parse gcc output format: file:line:col: severity: message
                 for line in result.stderr.split('\n'):
                     if ':' in line and ('error' in line.lower() or 'warning' in line.lower()):
                         parts = line.split(':')
@@ -204,7 +209,7 @@ class CodeLinter:
         return errors
     
     def _lint_cpp(self, code: str, filename: str) -> List[Dict[str, Any]]:
-        """Lint C++ code using g++ syntax check"""
+        """Lint C++ code using g++ or clang"""
         errors = []
         
         with tempfile.NamedTemporaryFile(mode='w', suffix='.cpp', delete=False) as f:
@@ -212,7 +217,7 @@ class CodeLinter:
             temp_path = f.name
         
         try:
-            # Use g++ for syntax checking with C++17 standard
+            # Try g++ syntax check
             result = subprocess.run(
                 ['g++', '-fsyntax-only', '-Wall', '-Wextra', '-std=c++17', temp_path],
                 capture_output=True,
@@ -221,7 +226,6 @@ class CodeLinter:
             )
             
             if result.stderr:
-                # Parse g++ output
                 for line in result.stderr.split('\n'):
                     if ':' in line and ('error' in line.lower() or 'warning' in line.lower()):
                         parts = line.split(':')
@@ -239,6 +243,106 @@ class CodeLinter:
                                     'severity': severity,
                                     'code': '',
                                     'source': 'g++'
+                                })
+                            except ValueError:
+                                pass
+        
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        
+        finally:
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+        
+        return errors
+    
+    def _lint_java(self, code: str, filename: str) -> List[Dict[str, Any]]:
+        """Lint Java code using javac"""
+        errors = []
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.java', delete=False) as f:
+            f.write(code)
+            temp_path = f.name
+        
+        try:
+            result = subprocess.run(
+                ['javac', '-Xlint:all', temp_path],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.stderr:
+                for line in result.stderr.split('\n'):
+                    if ':' in line and ('error' in line or 'warning' in line):
+                        parts = line.split(':')
+                        if len(parts) >= 3:
+                            try:
+                                line_num = int(parts[1])
+                                message = ':'.join(parts[2:]).strip()
+                                severity = 'error' if 'error' in line else 'warning'
+                                
+                                errors.append({
+                                    'line': line_num,
+                                    'column': 1,
+                                    'message': message,
+                                    'severity': severity,
+                                    'code': '',
+                                    'source': 'javac'
+                                })
+                            except ValueError:
+                                pass
+        
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        
+        finally:
+            try:
+                os.unlink(temp_path)
+                # Clean up .class file if generated
+                class_file = temp_path.replace('.java', '.class')
+                if os.path.exists(class_file):
+                    os.unlink(class_file)
+            except:
+                pass
+        
+        return errors
+    
+    def _lint_go(self, code: str, filename: str) -> List[Dict[str, Any]]:
+        """Lint Go code"""
+        errors = []
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.go', delete=False) as f:
+            f.write(code)
+            temp_path = f.name
+        
+        try:
+            # Try go vet
+            result = subprocess.run(
+                ['go', 'vet', temp_path],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.stderr:
+                for line in result.stderr.split('\n'):
+                    if ':' in line:
+                        parts = line.split(':')
+                        if len(parts) >= 3:
+                            try:
+                                line_num = int(parts[1])
+                                message = ':'.join(parts[2:]).strip()
+                                
+                                errors.append({
+                                    'line': line_num,
+                                    'column': 1,
+                                    'message': message,
+                                    'severity': 'warning',
+                                    'code': '',
+                                    'source': 'go vet'
                                 })
                             except ValueError:
                                 pass
