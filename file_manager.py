@@ -1,5 +1,6 @@
 import os
 import json
+import shutil
 from pathlib import Path
 from typing import Dict, List, Any
 from datetime import datetime
@@ -61,6 +62,21 @@ class FileManager:
         
         return sorted(projects, key=lambda x: x["last_modified"], reverse=True)
     
+    def delete_project(self, username: str, project_name: str) -> Dict[str, Any]:
+        """Delete an entire project"""
+        user_dir = self.create_user_project_dir(username)
+        project_dir = user_dir / project_name
+        
+        if not project_dir.exists():
+            return {"success": False, "message": "Project not found"}
+        
+        try:
+            shutil.rmtree(project_dir)
+            return {"success": True, "message": "Project deleted successfully"}
+        
+        except Exception as e:
+            return {"success": False, "message": f"Error deleting project: {str(e)}"}
+    
     def create_file(self, username: str, project_name: str, file_path: str, content: str = "") -> Dict[str, Any]:
         """Create a new file in a project"""
         user_dir = self.create_user_project_dir(username)
@@ -83,6 +99,55 @@ class FileManager:
             "message": "File created successfully",
             "file_path": str(full_path)
         }
+    
+    def create_folder(self, username: str, project_name: str, folder_path: str) -> Dict[str, Any]:
+        """Create a new folder in a project"""
+        user_dir = self.create_user_project_dir(username)
+        project_dir = user_dir / project_name
+        
+        if not project_dir.exists():
+            return {"success": False, "message": "Project not found"}
+        
+        full_path = project_dir / folder_path
+        
+        try:
+            full_path.mkdir(parents=True, exist_ok=False)
+            self._update_project_meta(project_dir)
+            return {
+                "success": True,
+                "message": "Folder created successfully",
+                "folder_path": str(full_path)
+            }
+        
+        except FileExistsError:
+            return {"success": False, "message": "Folder already exists"}
+        
+        except Exception as e:
+            return {"success": False, "message": f"Error creating folder: {str(e)}"}
+    
+    def delete_folder(self, username: str, project_name: str, folder_path: str) -> Dict[str, Any]:
+        """Delete a folder and all its contents"""
+        user_dir = self.create_user_project_dir(username)
+        project_dir = user_dir / project_name
+        
+        if not project_dir.exists():
+            return {"success": False, "message": "Project not found"}
+        
+        full_path = project_dir / folder_path
+        
+        if not full_path.exists():
+            return {"success": False, "message": "Folder not found"}
+        
+        if not full_path.is_dir():
+            return {"success": False, "message": "Path is not a folder"}
+        
+        try:
+            shutil.rmtree(full_path)
+            self._update_project_meta(project_dir)
+            return {"success": True, "message": "Folder deleted successfully"}
+        
+        except Exception as e:
+            return {"success": False, "message": f"Error deleting folder: {str(e)}"}
     
     def read_file(self, username: str, project_name: str, file_path: str) -> Dict[str, Any]:
         """Read a file from a project"""
