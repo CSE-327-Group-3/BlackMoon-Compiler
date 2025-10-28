@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,8 +7,11 @@ from pydantic import BaseModel
 import uvicorn
 import logging
 from pathlib import Path
+from contextlib import asynccontextmanager
 from typing import Dict
+import asyncio
 
+from terminal_handler import TerminalHandler
 from auth import authenticate_user, create_access_token, verify_token, create_user
 from file_manager import FileManager
 from config import Config
@@ -17,25 +20,11 @@ from config import Config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+active_connections: Dict[int, TerminalHandler] = {}
 security = HTTPBearer()
 
 # Initialize services
 file_manager = FileManager()
-
-# Initialize app
-app = FastAPI(title="BlackMoon Compiler", version="1.0.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Static files
-STATIC_DIR = Config.STATIC_DIR
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # Pydantic models
 class LoginRequest(BaseModel):
@@ -56,9 +45,38 @@ class FileRequest(BaseModel):
     file_path: str
     content: str = ""
 
+class FileOperationRequest(BaseModel):
+    project_name: str
+    file_path: str
+    new_path: str = ""
+
 class FolderCreateRequest(BaseModel):
     project_name: str
     folder_path: str
+
+# Lifespan context manager for startup/shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("🚀 BlackMoon Compiler starting up...")
+    yield
+    logger.info("🔄 Shutting down...")
+    for handler in active_connections.values():
+        await handler.cleanup()
+    active_connections.clear()
+
+app = FastAPI(title="BlackMoon Compiler", version="1.0.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Static files
+STATIC_DIR = Config.STATIC_DIR
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # Serve pages
 @app.get("/")
@@ -276,11 +294,66 @@ async def delete_folder(project_name: str, folder_path: str, credentials: HTTPAu
     
     return result
 
+@app.put("/api/files/rename")
+async def rename_file(request: FileOperationRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Rename a file in a project"""
+    payload = verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    username = payload.get("sub")
+    result = file_manager.rename_file(username, request.project_name, request.file_path, request.new_path)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    return result
+
+# WebSocket endpoint for code execution
+@app.websocket("/api/terminal")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for terminal communication"""
+    connection_id = id(websocket)
+    
+    try:
+        await websocket.accept()
+        logger.info(f"📱 New WebSocket connection: {connection_id}")
+        
+        # Send ready message to frontend
+        try:
+            await websocket.send_text("BLACKMOON_WS_READY\n")
+        except Exception as e:
+            logger.error(f"Failed to send WS ready message: {e}")
+        
+        handler = TerminalHandler(websocket)
+        active_connections[connection_id] = handler
+        
+        while True:
+            try:
+                data = await websocket.receive_text()
+                logger.info(f"📩 Received from {connection_id}: {data[:100]}")
+                await handler.handle_message(data)
+            except WebSocketDisconnect:
+                logger.info(f"📤 WebSocket disconnected: {connection_id}")
+                break
+            except Exception as e:
+                logger.error(f"❌ WebSocket error for {connection_id}: {e}")
+                await websocket.send_text(f"❌ Error: {str(e)}\n")
+    
+    except Exception as e:
+        logger.error(f"❌ Connection error {connection_id}: {e}")
+    finally:
+        if connection_id in active_connections:
+            handler = active_connections.pop(connection_id)
+            await handler.cleanup()
+            logger.info(f"🧹 Cleaned up connection: {connection_id}")
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
+        "active_connections": len(active_connections),
         "static_files": len(list(STATIC_DIR.iterdir())) if STATIC_DIR.exists() else 0
     }
 
@@ -292,7 +365,7 @@ if __name__ == "__main__":
         "main:app",
         host=host,
         port=port,
-        reload=True,
+        reload=False,
         log_level="info"
     )
 
