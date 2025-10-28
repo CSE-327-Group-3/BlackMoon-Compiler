@@ -1,7 +1,8 @@
+# formatter.py - Complete with Java, Go, and Rust support
 import subprocess
 import tempfile
 import os
-import json
+from pathlib import Path
 from typing import Dict, Any
 
 class CodeFormatter:
@@ -14,6 +15,9 @@ class CodeFormatter:
             'c': self._format_c,
             'cpp': self._format_cpp,
             'c++': self._format_cpp,
+            'java': self._format_java,
+            'go': self._format_go,
+            'rust': self._format_rust,
             'json': self._format_json,
         }
     
@@ -142,9 +146,88 @@ class CodeFormatter:
         
         return code
     
+    def _format_java(self, code: str) -> str:
+        """Format Java code using google-java-format"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.java', delete=False) as f:
+            f.write(code)
+            temp_path = f.name
+        
+        try:
+            # Try google-java-format
+            result = subprocess.run(
+                ['google-java-format', temp_path],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0 and result.stdout:
+                return result.stdout
+        
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        
+        finally:
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+        
+        return code
+    
+    def _format_go(self, code: str) -> str:
+        """Format Go code using gofmt"""
+        try:
+            result = subprocess.run(
+                ['gofmt'],
+                input=code,
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0 and result.stdout:
+                return result.stdout
+        
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        
+        return code
+    
+    def _format_rust(self, code: str) -> str:
+        """Format Rust code using rustfmt"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.rs', delete=False) as f:
+            f.write(code)
+            temp_path = f.name
+        
+        try:
+            # rustfmt modifies file in place
+            result = subprocess.run(
+                ['rustfmt', temp_path],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0:
+                with open(temp_path, 'r') as f:
+                    return f.read()
+        
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        
+        finally:
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+        
+        return code
+    
     def _format_json(self, code: str) -> str:
         """Format JSON"""
         try:
+            import json
             parsed = json.loads(code)
             return json.dumps(parsed, indent=2, ensure_ascii=False)
         except:
