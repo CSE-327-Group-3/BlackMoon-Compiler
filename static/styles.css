@@ -405,3 +405,294 @@ body {
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 14px;
 }
+
+/* Ace Editor Customization */
+.ace_editor {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+    /* Allow JS to control editor font size via Ace API */
+    font-size: 14px; /* removed !important so runtime changes apply */
+}
+
+.ace_gutter {
+    background: var(--bg-secondary) !important;
+    color: var(--text-secondary) !important;
+}
+
+.ace_gutter-active-line {
+    background: var(--bg-tertiary) !important;
+}
+
+.ace_marker-layer .ace_active-line {
+    background: rgba(255, 255, 255, 0.03) !important;
+}
+
+.ace_cursor {
+    color: var(--accent-blue) !important;
+}
+
+.ace_selection {
+    background: rgba(66, 135, 245, 0.3) !important;
+}
+
+/* Lint Markers in Gutter */
+.ace_error {
+    position: absolute;
+    background-image: none !important;
+}
+
+.ace_warning {
+    position: absolute;
+    background-image: none !important;
+}
+
+.lint-marker {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+.lint-marker-error {
+    color: var(--accent-red);
+}
+
+.lint-marker-warning {
+    color: var(--accent-orange);
+}
+
+.lint-marker:hover {
+    opacity: 0.8;
+}
+
+/* Error Panel */
+.error-panel {
+    max-height: 200px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    overflow-y: auto;
+    display: none;
+}
+
+.error-panel.show {
+    display: block;
+}
+
+.error-panel-header {
+    padding: 8px 16px;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+}
+
+.error-count {
+    display: flex;
+    gap: 16px;
+    font-size: 0.9rem;
+}
+
+.error-count-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.error-count-item.errors {
+    color: var(--accent-red);
+}
+
+.error-count-item.warnings {
+    color: var(--accent-orange);
+}
+
+.error-list {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.error-item {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.error-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.error-icon {
+    margin-top: 2px;
+    font-size: 14px;
+}
+
+.error-icon.error {
+    color: var(--accent-red);
+}
+
+.error-icon.warning {
+    color: var(--accent-orange);
+}
+
+.error-details {
+    flex: 1;
+}
+
+.error-message {
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+}
+
+.error-location {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.error-code {
+    color: var(--accent-blue);
+    font-family: 'Consolas', 'Monaco', monospace;
+    margin-left: 8px;
+}
+
+/* Terminal Panel */
+.terminal-panel {
+    flex: 0 0 250px;
+    height: 250px; /* initial size */
+    min-height: 120px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    transition: height 0.2s ease;
+    overflow: hidden; /* ensure collapse hides content */
+}
+
+.terminal-panel.collapsed {
+    flex: 0 0 40px;
+    height: 40px !important;
+    min-height: 0;
+}
+
+.terminal-panel.collapsed #terminal {
+    display: none;
+}
+
+body.resizing-vertical .terminal-panel {
+    transition: none;
+}
+
+.panel-resizer {
+    flex: 0 0 8px;
+    height: 8px;
+    background: var(--border-color);
+    cursor: row-resize;
+    position: relative;
+    transition: background 0.2s ease;
+}
+
+.panel-resizer::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 2px;
+    background: var(--text-tertiary);
+    border-radius: 999px;
+    opacity: 0.6;
+}
+
+.panel-resizer:hover,
+body.resizing-vertical .panel-resizer {
+    background: var(--accent-blue);
+}
+
+.panel-resizer.inactive {
+    opacity: 0.4;
+    cursor: default;
+    pointer-events: none;
+}
+
+.terminal-header {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-tertiary);
+}
+
+.terminal-header h3 {
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.terminal-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.terminal-font-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.terminal-font-controls .btn {
+    min-width: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+body.resizing-vertical {
+    cursor: row-resize !important;
+    user-select: none;
+}
+
+body.resizing-vertical * {
+    cursor: row-resize !important;
+}
+
+#terminal {
+    flex: 1 1 auto;
+    background: #0c0c0c;
+    position: relative;
+    display: flex;
+    min-height: 0;
+    padding: 8px;
+}
+
+.terminal-container {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+}
+
+.terminal-container .xterm {
+    height: 100%;
+}
+
+.xterm .xterm-viewport {
+    border-radius: 4px;
+}
+
+.xterm {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    background-color: #0c0c0c;
+    color: #d1d5db;
+}
