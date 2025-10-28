@@ -12,7 +12,13 @@ class BlackMoonCompiler {
         this.authToken = localStorage.getItem('authToken');
         this.fontSize = this._loadFontSize();
         this.currentFolder = null;
-        this.outputBuffer = '';
+        
+        // Terminal properties
+        this.xterm = null;
+        this.fitAddon = null;
+        this.terminalInputBuffer = '';
+        this.textDecoder = typeof TextDecoder !== 'undefined' ? new TextDecoder() : null;
+        this.terminalFontSize = this._loadTerminalFontSize();
         
         this.init();
     }
@@ -24,8 +30,9 @@ class BlackMoonCompiler {
             return;
         }
 
-        // Initialize editor
+        // Initialize components
         this.initEditor();
+        this.initTerminal();
         
         // Load projects
         await this.loadProjects();
@@ -38,7 +45,7 @@ class BlackMoonCompiler {
     }
 
     initEditor() {
-        // Initialize Ace Editor with monokai theme
+        // Initialize Ace Editor
         this.editor = ace.edit("codeEditor");
         this.editor.setTheme("ace/theme/monokai");
         this.editor.session.setMode("ace/mode/python");
@@ -73,12 +80,151 @@ class BlackMoonCompiler {
         // Handle window resize
         window.addEventListener('resize', () => {
             this.editor && this.editor.resize(true);
+            this.fitTerminal();
         });
 
-        // Update editor mode when language changes
+        // Update editor mode on language change
         document.getElementById('languageSelect').addEventListener('change', (e) => {
             this.setEditorMode(e.target.value);
         });
+    }
+
+    initTerminal() {
+        if (this.xterm) return;
+
+        const container = document.getElementById('terminal-container');
+        if (!container) {
+            console.warn('[Terminal] Container not found.');
+            return;
+        }
+
+        if (typeof Terminal === 'undefined') {
+            console.warn('[Terminal] xterm.js not loaded.');
+            return;
+        }
+
+        // Create xterm instance
+        this.xterm = new Terminal({
+            convertEol: true,
+            cursorBlink: true,
+            scrollback: 2000,
+            fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
+            fontSize: this.terminalFontSize,
+            theme: {
+                background: '#0c0c0c',
+                foreground: '#d1d5db',
+                cursor: '#facc15',
+                selection: 'rgba(88, 28, 135, 0.35)'
+            }
+        });
+
+        // Load fit addon for responsive sizing
+        try {
+            if (window.FitAddon && typeof window.FitAddon.FitAddon === 'function') {
+                this.fitAddon = new window.FitAddon.FitAddon();
+            } else if (typeof FitAddon !== 'undefined') {
+                this.fitAddon = new FitAddon.FitAddon();
+            }
+            if (this.fitAddon) {
+                this.xterm.loadAddon(this.fitAddon);
+            }
+        } catch (err) {
+            console.warn('[Terminal] Failed to load fit addon:', err);
+        }
+
+        this.xterm.open(container);
+        this.fitTerminal();
+        this.focusTerminal();
+
+        // Handle terminal input
+        this.xterm.onData((data) => this.handleTerminalData(data));
+    }
+
+    fitTerminal() {
+        if (this.fitAddon && typeof this.fitAddon.fit === 'function') {
+            try {
+                this.fitAddon.fit();
+            } catch (err) {
+                console.debug('[Terminal] fit failed:', err);
+            }
+        }
+    }
+
+    focusTerminal() {
+        if (this.xterm && typeof this.xterm.focus === 'function') {
+            try {
+                this.xterm.focus();
+            } catch (_) {}
+        }
+    }
+
+    handleTerminalData(data) {
+        if (!this.xterm) return;
+
+        // Ignore escape sequences for now
+        if (data && data.startsWith('\u001b')) {
+            return;
+        }
+
+        for (const char of data) {
+            switch (char) {
+                case '\r':
+                case '\n': {
+                    const payload = this.terminalInputBuffer;
+                    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                        this.ws.send(`INPUT ${payload}`);
+                    }
+                    this.terminalInputBuffer = '';
+                    this.xterm.write('\r\n');
+                    break;
+                }
+                case '\u0003': { // Ctrl+C
+                    this.xterm.write('^C\r\n');
+                    this.terminalInputBuffer = '';
+                    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                        this.ws.send('STOP');
+                    }
+                    this.isRunning = false;
+                    this.updateRunButton();
+                    break;
+                }
+                case '\u007f': // Backspace
+                case '\b': {
+                    if (this.terminalInputBuffer.length > 0) {
+                        this.terminalInputBuffer = this.terminalInputBuffer.slice(0, -1);
+                        this.xterm.write('\b \b');
+                    }
+                    break;
+                }
+                default: {
+                    if (char >= ' ') {
+                        this.terminalInputBuffer += char;
+                        this.xterm.write(char);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    clearTerminal() {
+        if (this.xterm) {
+            this.xterm.clear();
+        }
+    }
+
+    toggleTerminal() {
+        const terminalPanel = document.querySelector('.terminal-panel');
+        if (terminalPanel) {
+            terminalPanel.classList.toggle('collapsed');
+            this.fitTerminal();
+            this.editor && this.editor.resize(true);
+        }
+    }
+
+    _loadTerminalFontSize() {
+        const stored = parseInt(localStorage.getItem('terminalFontSize'), 10);
+        return !isNaN(stored) ? Math.min(32, Math.max(10, stored)) : 13;
     }
 
     setEditorMode(language) {
@@ -89,7 +235,8 @@ class BlackMoonCompiler {
             'java': 'java',
             'javascript': 'javascript',
             'go': 'golang',
-            'rust': 'rust'
+            'rust': 'rust',
+            'json': 'json'
         };
         this.editor.session.setMode(`ace/mode/${modeMap[language] || 'text'}`);
     }
@@ -111,6 +258,10 @@ class BlackMoonCompiler {
                 this.runCode();
             }
         });
+
+        // Terminal controls
+        document.getElementById('clearTerminalBtn')?.addEventListener('click', () => this.clearTerminal());
+        document.getElementById('toggleTerminalBtn')?.addEventListener('click', () => this.toggleTerminal());
     }
 
     async runCode() {
@@ -122,17 +273,17 @@ class BlackMoonCompiler {
             return;
         }
 
-        // Clear previous output
-        this.clearOutput();
+        // Clear terminal
+        this.clearTerminal();
         this.isRunning = true;
         this.updateRunButton();
 
-        // Connect WebSocket if not connected
+        // Connect WebSocket if needed
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
             await this.connectWebSocket();
         }
 
-        // Send code execution request
+        // Execute code
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             this.ws.send(JSON.stringify({
                 action: 'run',
@@ -185,16 +336,19 @@ class BlackMoonCompiler {
     }
 
     handleWebSocketMessage(data) {
-        // Parse WebSocket messages and display output
         if (data.startsWith('OUTPUT ')) {
             const output = data.substring(7);
-            this.appendOutput(output);
+            if (this.xterm) {
+                this.xterm.write(output.replace(/\n/g, '\r\n'));
+            }
         } else if (data === 'EXECUTION_COMPLETE') {
             this.isRunning = false;
             this.updateRunButton();
         } else if (data.startsWith('ERROR ')) {
             const error = data.substring(6);
-            this.appendOutput(error, 'error');
+            if (this.xterm) {
+                this.xterm.write(`\x1b[31m${error}\x1b[0m\r\n`);
+            }
             this.isRunning = false;
             this.updateRunButton();
         }
@@ -217,23 +371,6 @@ class BlackMoonCompiler {
             runButton.textContent = '▶ Run';
             runButton.classList.remove('running');
         }
-    }
-
-    clearOutput() {
-        const output = document.getElementById('output');
-        output.textContent = '';
-        this.outputBuffer = '';
-    }
-
-    appendOutput(text, type = 'normal') {
-        const output = document.getElementById('output');
-        const span = document.createElement('span');
-        span.textContent = text;
-        if (type === 'error') {
-            span.style.color = '#ff6b6b';
-        }
-        output.appendChild(span);
-        output.scrollTop = output.scrollHeight;
     }
 
     _loadFontSize() {
