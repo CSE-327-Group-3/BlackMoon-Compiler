@@ -134,7 +134,25 @@
                     <div class="editor-container">
                         <div id="codeEditor"></div>
                     </div>
+                    <div class="error-panel" id="errorPanel">
+                        <div class="error-panel-header">
+                            <div class="error-count">
+                                <div class="error-count-item errors">
+                                    <i class="fas fa-times-circle"></i>
+                                    <span id="errorCount">0</span> Errors
+                                </div>
+                                <div class="error-count-item warnings">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <span id="warningCount">0</span> Warnings
+                                </div>
+                            </div>
+                            <button id="closeErrorPanelBtn" class="btn btn-sm btn-outline">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <ul class="error-list" id="errorList"></ul>
                     </div>
+                </div>
 
                 <div class="panel-resizer" id="terminalResizer" role="separator" aria-label="Resize terminal" aria-orientation="vertical" tabindex="0"></div>
 
