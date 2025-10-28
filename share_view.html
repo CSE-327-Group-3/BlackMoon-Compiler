@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shared Code - BlackMoon</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/static/blackmoon.ico">
+    <link rel="shortcut icon" type="image/x-icon" href="/static/blackmoon.ico">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-tertiary: #0f3460;
+            --text-primary: #e4e4e4;
+            --text-secondary: #b0b0b0;
+            --accent-blue: #00b4d8;
+            --accent-purple: #9d4edd;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .profile-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .profile-pic {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: var(--accent-blue);
+            overflow: hidden;
+        }
+
+        .profile-pic img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .profile-info h2 {
+            color: var(--text-primary);
+            margin-bottom: 5px;
+        }
+
+        .profile-info .bio {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .code-section {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .code-header {
+            padding: 15px 20px;
+            background: var(--bg-tertiary);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .code-header h3 {
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .copy-btn {
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: #0096c7;
+        }
+
+        #codeEditor {
+            height: 600px;
+            font-size: 14px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        .error {
+            background: rgba(220, 38, 38, 0.1);
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            color: #fca5a5;
+        }
+
+        .branding {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid var(--bg-tertiary);
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .branding a {
+            color: var(--accent-blue);
+            text-decoration: none;
+        }
+
+        .branding a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="content">
+            <div class="loading">
+                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                <p>Loading shared code...</p>
+            </div>
+        </div>
+
+        <div class="branding">
+            <p><i class="fas fa-moon"></i> Powered by <strong>BlackMoon Compiler</strong></p>
+            <p><a href="/app">Create your own projects →</a></p>
+        </div>
+    </div>
+
+    <!-- Ace Editor -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.23.4/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.23.4/ext-language_tools.js"></script>
+
+    <script>
+        // Get share ID from URL
+        const shareId = window.location.pathname.split('/').pop();
+
+        async function loadSharedFile() {
+            try {
+                const response = await fetch(`/api/share/${shareId}/data`);
+                
+                if (!response.ok) {
+                    throw new Error('Shared file not found');
+                }
+
+                const data = await response.json();
+                renderSharedFile(data);
+            } catch (error) {
+                console.error('Error loading shared file:', error);
+                showError('Failed to load shared file. It may have been deleted or the link is invalid.');
+            }
+        }
+
+        function renderSharedFile(data) {
+            const content = document.getElementById('content');
+            
+            // Get file extension for language detection
+            const fileExt = data.file_path.split('.').pop().toLowerCase();
+            const languageMap = {
+                'py': 'python',
+                'js': 'javascript',
+                'cpp': 'c_cpp',
+                'c': 'c_cpp',
+                'java': 'java',
+                'html': 'html',
+                'css': 'css',
+                'json': 'json',
+                'md': 'markdown'
+            };
+            const language = languageMap[fileExt] || 'text';
+
+            content.innerHTML = `
+                <div class="header">
+                    <div class="profile-section">
+                        <div class="profile-pic">
+                            ${data.profile_picture ? 
+                                `<img src="${data.profile_picture}" alt="${data.username}">` : 
+                                `<i class="fas fa-user"></i>`
+                            }
+                        </div>
+                        <div class="profile-info">
+                            <h2><i class="fas fa-user-circle"></i> ${data.username}</h2>
+                            <p class="bio">${data.bio || 'No bio provided'}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="code-section">
+                    <div class="code-header">
+                        <h3><i class="fas fa-file-code"></i> ${data.file_path}</h3>
+                        <button class="copy-btn" onclick="copyCode()">
+                            <i class="fas fa-copy"></i> Copy Code
+                        </button>
+                    </div>
+                    <div id="codeEditor"></div>
+                </div>
+            `;
+
+            // Initialize Ace Editor (read-only)
+            const editor = ace.edit("codeEditor");
+            editor.setTheme("ace/theme/monokai");
+            editor.session.setMode(`ace/mode/${language}`);
+            editor.setValue(data.code, -1);
+            editor.setReadOnly(true);
+            editor.setOptions({
+                fontSize: "14px",
+                showPrintMargin: false,
+                highlightActiveLine: false,
+                highlightGutterLine: false
+            });
+
+            // Store code for copying
+            window.sharedCode = data.code;
+        }
+
+        function copyCode() {
+            navigator.clipboard.writeText(window.sharedCode).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                const originalHTML = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                setTimeout(() => {
+                    btn.innerHTML = originalHTML;
+                }, 2000);
+            });
+        }
+
+        function showError(message) {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <div class="error">
+                    <i class="fas fa-exclamation-triangle fa-2x"></i>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+
+        // Load the shared file on page load
+        loadSharedFile();
+    </script>
+</body>
+</html>
+
