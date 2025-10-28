@@ -211,6 +211,55 @@ class FileManager:
         except Exception as e:
             return {"success": False, "message": f"Error deleting file: {str(e)}"}
     
+    def rename_file(self, username: str, project_name: str, old_path: str, new_path: str) -> Dict[str, Any]:
+        """Rename a file in a project"""
+        user_dir = self.create_user_project_dir(username)
+        project_dir = user_dir / project_name
+        old_full_path = project_dir / old_path
+        new_full_path = project_dir / new_path
+        
+        if not old_full_path.exists():
+            return {"success": False, "message": "File not found"}
+        
+        if new_full_path.exists():
+            return {"success": False, "message": "Target file already exists"}
+        
+        try:
+            new_full_path.parent.mkdir(parents=True, exist_ok=True)
+            old_full_path.rename(new_full_path)
+            self._update_project_meta(project_dir)
+            return {"success": True, "message": "File renamed successfully"}
+        
+        except Exception as e:
+            return {"success": False, "message": f"Error renaming file: {str(e)}"}
+    
+    def get_file_info(self, username: str, project_name: str, file_path: str) -> Dict[str, Any]:
+        """Get detailed information about a file"""
+        user_dir = self.create_user_project_dir(username)
+        project_dir = user_dir / project_name
+        full_path = project_dir / file_path
+        
+        if not full_path.exists():
+            return {"success": False, "message": "File not found"}
+        
+        try:
+            stats = full_path.stat()
+            return {
+                "success": True,
+                "file_info": {
+                    "name": full_path.name,
+                    "path": str(file_path),
+                    "size": stats.st_size,
+                    "created": datetime.fromtimestamp(stats.st_ctime).isoformat(),
+                    "modified": datetime.fromtimestamp(stats.st_mtime).isoformat(),
+                    "is_file": full_path.is_file(),
+                    "extension": full_path.suffix
+                }
+            }
+        
+        except Exception as e:
+            return {"success": False, "message": f"Error getting file info: {str(e)}"}
+    
     def list_files(self, username: str, project_name: str) -> Dict[str, Any]:
         """List all files and folders in a project"""
         user_dir = self.create_user_project_dir(username)
