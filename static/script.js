@@ -85,6 +85,12 @@ class BlackMoonCompiler {
             exec: () => this.runCode()
         });
 
+        this.editor.commands.addCommand({
+            name: 'format',
+            bindKey: {win: 'Ctrl-Alt-L', mac: 'Command-Alt-L'},
+            exec: () => this.formatCode()
+        });
+
         // Font size shortcuts
         this.editor.commands.addCommand({
             name: 'increaseFont',
@@ -98,6 +104,12 @@ class BlackMoonCompiler {
             exec: () => this.decreaseFontSize()
         });
 
+        this.editor.commands.addCommand({
+            name: 'resetFont',
+            bindKey: { win: 'Ctrl-0', mac: 'Command-0' },
+            exec: () => this.resetFontSize()
+        });
+
         // Handle resize
         const doLayout = () => {
             try {
@@ -107,9 +119,19 @@ class BlackMoonCompiler {
         window.addEventListener('resize', doLayout);
         setTimeout(doLayout, 0);
 
+        // Setup linting on code change
+        this.lintTimeout = null;
+        this.editor.session.on('change', () => {
+            clearTimeout(this.lintTimeout);
+            this.lintTimeout = setTimeout(() => {
+                this.lintCode();
+            }, 1000); // Lint 1 second after user stops typing
+        });
+
         // Update editor mode on language change
         document.getElementById('languageSelect').addEventListener('change', (e) => {
             this.setEditorMode(e.target.value);
+            this.lintCode(); // Re-lint when language changes
         });
     }
 
@@ -280,6 +302,9 @@ class BlackMoonCompiler {
     }
 
     setupEventListeners() {
+        // Close error panel button
+        document.getElementById('closeErrorPanelBtn').addEventListener('click', () => this.clearErrors());
+
         // Project selector
         document.getElementById('projectSelect').addEventListener('change', (e) => {
             if (e.target.value) {
@@ -309,6 +334,7 @@ class BlackMoonCompiler {
             }
         });
         bindClick('saveButton', () => this.saveCurrentFile());
+        bindClick('formatButton', () => this.formatCode());
         bindClick('newFileBtn', () => this.showNewFileModal());
         bindClick('newFolderBtn', () => this.showNewFolderModal());
         bindClick('fontIncrease', () => this.increaseFontSize());
@@ -354,6 +380,119 @@ class BlackMoonCompiler {
         this.initTerminalResizer();
     }
 
+    async lintCode() {
+        const code = this.editor.getValue();
+        const language = document.getElementById('languageSelect').value;
+
+        if (!code.trim()) {
+            this.clearErrors();
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/lint', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.authToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ code, language })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.errors && data.errors.length > 0) {
+                    this.displayErrors(data.errors);
+                } else {
+                    this.clearErrors();
+                }
+            }
+        } catch (error) {
+            console.error('Linting error:', error);
+        }
+    }
+
+    displayErrors(errors) {
+        const errorPanel = document.getElementById('errorPanel');
+        const errorList = document.getElementById('errorList');
+        
+        errorList.innerHTML = '';
+        errors.forEach(error => {
+            const errorItem = document.createElement('div');
+            errorItem.className = 'error-item';
+            errorItem.innerHTML = `
+                <span class="error-icon">⚠️</span>
+                <span class="error-text">Line ${error.line}: ${error.message}</span>
+            `;
+            errorItem.addEventListener('click', () => {
+                this.editor.gotoLine(error.line, 0, true);
+                this.editor.focus();
+            });
+            errorList.appendChild(errorItem);
+        });
+        
+        errorPanel.classList.add('visible');
+    }
+
+    clearErrors() {
+        const errorPanel = document.getElementById('errorPanel');
+        errorPanel.classList.remove('visible');
+    }
+
+    async formatCode() {
+        const code = this.editor.getValue();
+        const language = document.getElementById('languageSelect').value;
+
+        if (!code.trim()) {
+            this.showNotification('No code to format', 'warning');
+            return;
+        }
+
+        const formatBtn = document.getElementById('formatButton');
+        const originalHTML = formatBtn.innerHTML;
+        formatBtn.innerHTML = '<span class="spinner"></span> Formatting...';
+        formatBtn.disabled = true;
+
+        try {
+            const response = await fetch('/api/format', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${this.authToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ code: code, language: language })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    if (data.changed) {
+                        // Preserve cursor position
+                        const cursor = this.editor.getCursorPosition();
+                        this.editor.setValue(data.code, -1);
+                        this.editor.moveCursorToPosition(cursor);
+                        this.showNotification('Code formatted successfully!', 'success');
+                        
+                        // Re-lint after formatting
+                        setTimeout(() => this.lintCode(), 500);
+                    } else {
+                        this.showNotification('Code is already formatted', 'info');
+                    }
+                } else {
+                    this.showNotification(data.message || 'Formatting not available for this language', 'warning');
+                }
+            } else {
+                this.showNotification('Failed to format code', 'error');
+            }
+        } catch (error) {
+            console.error('Format error:', error);
+            this.showNotification('Failed to format code', 'error');
+        } finally {
+            formatBtn.innerHTML = originalHTML;
+            formatBtn.disabled = false;
+        }
+    }
+
     _loadFontSize() {
         const stored = parseInt(localStorage.getItem('editorFontSize'), 10);
         if (!isNaN(stored)) {
@@ -385,6 +524,10 @@ class BlackMoonCompiler {
 
     decreaseFontSize() {
         this.setFontSize(this.fontSize - 1);
+    }
+
+    resetFontSize() {
+        this.setFontSize(14);
     }
 
     _loadTerminalFontSize() {
@@ -421,6 +564,10 @@ class BlackMoonCompiler {
 
     decreaseTerminalFont() {
         this.setTerminalFontSize(this.terminalFontSize - 1);
+    }
+
+    resetTerminalFontSize() {
+        this.setTerminalFontSize(13);
     }
 
     _getCurrentTerminalHeight() {
@@ -553,6 +700,23 @@ class BlackMoonCompiler {
             window.addEventListener('pointerup', stopResize);
             window.addEventListener('pointercancel', stopResize);
         });
+
+        // Keyboard support for accessibility
+        resizer.addEventListener('keydown', (event) => {
+            if (terminalPanel.classList.contains('collapsed')) {
+                return;
+            }
+            if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                event.preventDefault();
+                const step = event.shiftKey ? 40 : 16;
+                const mainMax = this._computeMaxTerminalHeight(resizer, mainContent);
+                const current = this._getCurrentTerminalHeight();
+                const delta = event.key === 'ArrowUp' ? step : -step;
+                let nextHeight = current + delta;
+                nextHeight = Math.max(this.MIN_TERMINAL_HEIGHT, Math.min(mainMax, nextHeight));
+                this.setTerminalHeight(nextHeight, { persist: true });
+            }
+        });
     }
 
     clearTerminal() {
@@ -571,7 +735,22 @@ class BlackMoonCompiler {
     }
 
     showNotification(message, type = 'info') {
-        console.log(`[${type.toUpperCase()}] ${message}`);
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        notification.textContent = message;
+        
+        // Add to body
+        document.body.appendChild(notification);
+        
+        // Trigger animation
+        setTimeout(() => notification.classList.add('show'), 10);
+        
+        // Remove after 3 seconds
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
     }
 
     showModal(modalId) {
@@ -714,6 +893,102 @@ class BlackMoonCompiler {
         } catch (error) {
             console.error('Failed to create folder:', error);
             this.showNotification('Failed to create folder', 'error');
+        }
+    }
+
+    async deleteFile(filePath) {
+        // Normalize path
+        filePath = filePath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+
+        const confirmed = confirm(`Are you sure you want to delete "${filePath}"? This cannot be undone.`);
+        if (!confirmed) return;
+
+        try {
+            const response = await fetch(`/api/files/${this.currentProject}/${filePath}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${this.authToken}` }
+            });
+
+            if (response.ok) {
+                this.showNotification('File deleted successfully', 'success');
+                
+                // Close tab if file is currently open
+                if (this.currentFile === filePath) {
+                    this.closeFile(filePath);
+                } else if (this.openFiles.has(filePath)) {
+                    this.openFiles.delete(filePath);
+                    const tabs = document.querySelectorAll('.file-tab');
+                    tabs.forEach(tab => {
+                        if (tab.getAttribute('data-file') === filePath) {
+                            tab.remove();
+                        }
+                    });
+                }
+                
+                // Refresh file tree
+                await this.loadProject(this.currentProject);
+            } else {
+                const error = await response.json();
+                this.showNotification(error.detail || 'Failed to delete file', 'error');
+            }
+        } catch (error) {
+            console.error('Failed to delete file:', error);
+            this.showNotification('Failed to delete file', 'error');
+        }
+    }
+
+    async deleteFolder(folderPath) {
+        // Normalize path
+        folderPath = folderPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+
+        const confirmed = confirm(`Are you sure you want to delete folder "${folderPath}" and all its contents? This cannot be undone.`);
+        if (!confirmed) return;
+
+        try {
+            const response = await fetch(`/api/folders/${this.currentProject}/${folderPath}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${this.authToken}` }
+            });
+
+            if (response.ok) {
+                this.showNotification('Folder deleted successfully', 'success');
+                
+                // Close all open files within this folder
+                const filesToClose = [];
+                this.openFiles.forEach((content, path) => {
+                    if (path.startsWith(folderPath + '/')) {
+                        filesToClose.push(path);
+                    }
+                });
+
+                filesToClose.forEach(path => {
+                    if (this.currentFile === path) {
+                        this.closeFile(path);
+                    } else {
+                        this.openFiles.delete(path);
+                        const tabs = document.querySelectorAll('.file-tab');
+                        tabs.forEach(tab => {
+                            if (tab.getAttribute('data-file') === path) {
+                                tab.remove();
+                            }
+                        });
+                    }
+                });
+
+                // Deactivate if this was the active folder
+                if (this.currentFolder === folderPath) {
+                    this.currentFolder = null;
+                }
+                
+                // Refresh file tree
+                await this.loadProject(this.currentProject);
+            } else {
+                const error = await response.json();
+                this.showNotification(error.detail || 'Failed to delete folder', 'error');
+            }
+        } catch (error) {
+            console.error('Failed to delete folder:', error);
+            this.showNotification('Failed to delete folder', 'error');
         }
     }
 
@@ -903,12 +1178,18 @@ class BlackMoonCompiler {
         div.style.paddingLeft = `${level * 16}px`;
         
         const icon = item.is_folder ? '📁' : '📄';
-        div.innerHTML = `<span>${icon} ${item.name}</span>`;
+        const actions = !item.is_folder ? 
+            `<button class="delete-btn" onclick="compiler.deleteFile('${item.path}')">🗑️</button>` :
+            `<button class="delete-btn" onclick="compiler.deleteFolder('${item.path}')">🗑️</button>`;
+        
+        div.innerHTML = `<span>${icon} ${item.name}</span>${actions}`;
         
         if (item.is_folder) {
-            div.addEventListener('click', () => {
-                this.currentFolder = item.path;
-                div.classList.toggle('expanded');
+            div.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('delete-btn')) {
+                    this.currentFolder = item.path;
+                    div.classList.toggle('expanded');
+                }
             });
             
             // Render children if folder is expanded
@@ -921,7 +1202,11 @@ class BlackMoonCompiler {
                 div.appendChild(childrenContainer);
             }
         } else {
-            div.addEventListener('click', () => this.openFile(item.path));
+            div.addEventListener('click', (e) => {
+                if (!e.target.classList.contains('delete-btn')) {
+                    this.openFile(item.path);
+                }
+            });
         }
         
         return div;
@@ -984,6 +1269,9 @@ class BlackMoonCompiler {
         document.querySelectorAll('.file-tab').forEach(tab => {
             tab.classList.toggle('active', tab.getAttribute('data-file') === filePath);
         });
+
+        // Trigger linting for the new file
+        this.lintCode();
     }
 
     closeFile(filePath) {
@@ -1001,6 +1289,7 @@ class BlackMoonCompiler {
             } else {
                 this.currentFile = null;
                 this.editor.setValue('', -1);
+                this.clearErrors();
             }
         }
     }
@@ -1043,4 +1332,20 @@ let compiler;
 document.addEventListener('DOMContentLoaded', () => {
     compiler = new BlackMoonCompiler();
 });
+
+// Add CSS for notifications
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+`;
+document.head.appendChild(style);
 
