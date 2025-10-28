@@ -9,11 +9,14 @@ import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Dict
+import signal
 import asyncio
 
 from terminal_handler import TerminalHandler
-from auth import authenticate_user, create_access_token, verify_token, create_user
+from auth import (authenticate_user, create_access_token, verify_token, create_user,
+                  get_user_api_key, update_user_api_key)
 from file_manager import FileManager
+from ai_explainer import AIExplainer
 from config import Config
 
 # Configure logging
@@ -54,7 +57,14 @@ class FolderCreateRequest(BaseModel):
     project_name: str
     folder_path: str
 
-# Lifespan context manager for startup/shutdown
+class AIExplainRequest(BaseModel):
+    code: str
+    language: str
+    explanation_type: str = "comprehensive"
+
+class APIKeyUpdateRequest(BaseModel):
+    api_key: str
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 BlackMoon Compiler starting up...")
@@ -74,17 +84,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static files
 STATIC_DIR = Config.STATIC_DIR
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-# Serve pages
 @app.get("/")
 async def serve_login():
     """Serve the login page"""
     login_path = STATIC_DIR / "login.html"
     if not login_path.exists():
-        raise HTTPException(status_code=404, detail="login.html not found")
+        raise HTTPException(status_code=404, detail="login.html not found in static directory")
     return FileResponse(str(login_path))
 
 @app.get("/app")
@@ -92,8 +100,40 @@ async def serve_index():
     """Serve the main application page"""
     index_path = STATIC_DIR / "index.html"
     if not index_path.exists():
-        raise HTTPException(status_code=404, detail="index.html not found")
+        # Fallback to legacy enhanced version for compatibility
+        legacy_path = STATIC_DIR / "enhanced_index.html"
+        if legacy_path.exists():
+            index_path = legacy_path
+        else:
+            raise HTTPException(status_code=404, detail="index.html not found in static directory")
     return FileResponse(str(index_path))
+
+# Serve static assets with friendly fallbacks
+@app.get("/styles.css")
+@app.get("/enhanced_styles.css")
+async def serve_styles():
+    """Serve application styles"""
+    css_path = STATIC_DIR / "styles.css"
+    if not css_path.exists():
+        legacy_path = STATIC_DIR / "enhanced_styles.css"
+        if legacy_path.exists():
+            css_path = legacy_path
+        else:
+            raise HTTPException(status_code=404, detail="styles.css not found")
+    return FileResponse(str(css_path))
+
+@app.get("/script.js")
+@app.get("/enhanced_script.js")
+async def serve_script():
+    """Serve main application script"""
+    js_path = STATIC_DIR / "script.js"
+    if not js_path.exists():
+        legacy_path = STATIC_DIR / "enhanced_script.js"
+        if legacy_path.exists():
+            js_path = legacy_path
+        else:
+            raise HTTPException(status_code=404, detail="script.js not found")
+    return FileResponse(str(js_path))
 
 @app.get("/favicon.ico")
 async def serve_favicon():
@@ -145,7 +185,7 @@ async def verify_user_token(credentials: HTTPAuthorizationCredentials = Depends(
     
     return {"valid": True, "username": payload.get("sub")}
 
-# Project Management Endpoints
+# File Management Endpoints (same as Phase 4)
 @app.post("/api/projects/create")
 async def create_project(request: ProjectRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Create a new project"""
@@ -188,7 +228,6 @@ async def delete_project(project_name: str, credentials: HTTPAuthorizationCreden
     
     return result
 
-# File Management Endpoints
 @app.post("/api/files/create")
 async def create_file(request: FileRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Create a new file in a project"""
@@ -309,7 +348,60 @@ async def rename_file(request: FileOperationRequest, credentials: HTTPAuthorizat
     
     return result
 
-# WebSocket endpoint for code execution
+# AI Explainer Endpoints
+@app.post("/api/ai/explain")
+async def explain_code(request: AIExplainRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Generate AI explanation of code"""
+    payload = verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    username = payload.get("sub")
+    user_api_key = get_user_api_key(username)
+    
+    # Create AIExplainer instance with user's API key
+    ai_explainer = AIExplainer(api_key=user_api_key)
+    result = ai_explainer.explain_code(request.code, request.language, request.explanation_type)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    return result
+
+@app.post("/api/ai/update-key")
+async def update_ai_key(request: APIKeyUpdateRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Update user's Gemini API key"""
+    payload = verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    username = payload.get("sub")
+    result = update_user_api_key(username, request.api_key)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    return result
+
+@app.get("/api/ai/status")
+async def get_ai_status(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get AI service status for current user"""
+    payload = verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    username = payload.get("sub")
+    user_api_key = get_user_api_key(username)
+    
+    # Create AIExplainer instance with user's API key to check status
+    ai_explainer = AIExplainer(api_key=user_api_key)
+    
+    return {
+        "ai_mode": "gemini" if ai_explainer.gemini_model else "fallback",
+        "api_key_configured": bool(user_api_key),
+        "gemini_available": ai_explainer.gemini_model is not None
+    }
+
 @app.websocket("/api/terminal")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for terminal communication"""
@@ -319,7 +411,6 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.accept()
         logger.info(f"📱 New WebSocket connection: {connection_id}")
         
-        # Send ready message to frontend
         try:
             await websocket.send_text("BLACKMOON_WS_READY\n")
         except Exception as e:
@@ -356,6 +447,14 @@ async def health_check():
         "active_connections": len(active_connections),
         "static_files": len(list(STATIC_DIR.iterdir())) if STATIC_DIR.exists() else 0
     }
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals"""
+    logger.info("🛑 Received shutdown signal")
+    exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 if __name__ == "__main__":
     port = Config.PORT
