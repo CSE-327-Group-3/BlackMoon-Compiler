@@ -59,7 +59,30 @@
                             </div>
                         </div>
                         <div id="profileMenu" class="profile-menu">
+                            <div class="profile-menu-header">
+                                <div class="profile-avatar-large" id="profileAvatarLarge">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                                <div class="profile-menu-info">
+                                    <strong id="profileUsername">User</strong>
+                                    <span id="profileEmail">user@example.com</span>
+                                </div>
                             </div>
+                            <div class="profile-menu-divider"></div>
+                            <button class="profile-menu-item" id="profileMenuItem">
+                                <i class="fas fa-user-circle"></i> My Profile
+                            </button>
+                            <button class="profile-menu-item" id="mySharesMenuItem">
+                                <i class="fas fa-share-alt"></i> My Shares
+                            </button>
+                            <button class="profile-menu-item" id="settingsMenuItem">
+                                <i class="fas fa-cog"></i> Settings
+                            </button>
+                            <div class="profile-menu-divider"></div>
+                            <button class="profile-menu-item danger" id="logoutMenuItem">
+                                <i class="fas fa-sign-out-alt"></i> Logout
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -142,6 +165,24 @@
             </main>
         </div>
 
+        <div id="aiModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2><i class="fas fa-robot"></i> AI Code Explanation</h2>
+                    <button class="close-btn" id="closeAiModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="explanation-tabs">
+                        <button class="tab-btn active" data-tab="comprehensive">Comprehensive</button>
+                        <button class="tab-btn" data-tab="line-by-line">Line by Line</button>
+                        <button class="tab-btn" data-tab="concepts">Concepts</button>
+                    </div>
+                    <div class="explanation-content" id="explanationContent">
+                        </div>
+                </div>
+            </div>
+        </div>
+
         <div id="newProjectModal" class="modal">
             <div class="modal-content">
                 <div class="modal-header">
@@ -205,6 +246,46 @@
             </div>
         </div>
 
+        <div id="aiChatModal" class="modal">
+            <div class="modal-content chat-modal">
+                <div class="modal-header">
+                    <h2><i class="fas fa-comments"></i> AI Assistant</h2>
+                    <button class="close-btn" id="closeAiChatModal">&times;</button>
+                </div>
+                <div class="modal-body chat-body">
+                    <div class="chat-context-selector">
+                        <label>Context:</label>
+                        <div class="context-options">
+                            <label class="context-option">
+                                <input type="checkbox" id="contextCurrentFile" checked>
+                                <i class="fas fa-file-code"></i> Current File
+                            </label>
+                            <label class="context-option">
+                                <input type="checkbox" id="contextProject">
+                                <i class="fas fa-folder"></i> Whole Project
+                            </label>
+                            <label class="context-option">
+                                <input type="checkbox" id="contextTerminal">
+                                <i class="fas fa-terminal"></i> Terminal Output
+                            </label>
+                        </div>
+                    </div>
+                    <div class="chat-messages" id="chatMessages">
+                        <div class="chat-welcome">
+                            <i class="fas fa-robot fa-3x"></i>
+                            <h3>Hi! I'm your AI coding assistant</h3>
+                            <p>Ask me anything about your code, project, or errors you're seeing!</p>
+                        </div>
+                    </div>
+                    <div class="chat-input-container">
+                        <textarea id="chatInput" placeholder="Ask me anything about your code..." rows="2"></textarea>
+                        <button id="sendChatBtn" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
