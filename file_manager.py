@@ -2,8 +2,9 @@ import os
 import json
 import shutil
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Optional, Any
 from datetime import datetime
+import uuid
 
 class FileManager:
     """Manage user projects and files"""
@@ -233,6 +234,50 @@ class FileManager:
         except Exception as e:
             return {"success": False, "message": f"Error renaming file: {str(e)}"}
     
+    def copy_file(self, username: str, project_name: str, source_path: str, dest_path: str) -> Dict[str, Any]:
+        """Copy a file within a project"""
+        user_dir = self.create_user_project_dir(username)
+        project_dir = user_dir / project_name
+        source_full_path = project_dir / source_path
+        dest_full_path = project_dir / dest_path
+        
+        if not source_full_path.exists():
+            return {"success": False, "message": "Source file not found"}
+        
+        if dest_full_path.exists():
+            return {"success": False, "message": "Destination file already exists"}
+        
+        try:
+            dest_full_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_full_path, dest_full_path)
+            self._update_project_meta(project_dir)
+            return {"success": True, "message": "File copied successfully"}
+        
+        except Exception as e:
+            return {"success": False, "message": f"Error copying file: {str(e)}"}
+    
+    def move_file(self, username: str, project_name: str, source_path: str, dest_path: str) -> Dict[str, Any]:
+        """Move a file within a project"""
+        user_dir = self.create_user_project_dir(username)
+        project_dir = user_dir / project_name
+        source_full_path = project_dir / source_path
+        dest_full_path = project_dir / dest_path
+        
+        if not source_full_path.exists():
+            return {"success": False, "message": "Source file not found"}
+        
+        if dest_full_path.exists():
+            return {"success": False, "message": "Destination file already exists"}
+        
+        try:
+            dest_full_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(source_full_path), str(dest_full_path))
+            self._update_project_meta(project_dir)
+            return {"success": True, "message": "File moved successfully"}
+        
+        except Exception as e:
+            return {"success": False, "message": f"Error moving file: {str(e)}"}
+    
     def get_file_info(self, username: str, project_name: str, file_path: str) -> Dict[str, Any]:
         """Get detailed information about a file"""
         user_dir = self.create_user_project_dir(username)
@@ -305,5 +350,4 @@ class FileManager:
         
         with open(meta_file, 'w') as f:
             json.dump(project_meta, f, indent=2)
-
 

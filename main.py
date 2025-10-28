@@ -5,18 +5,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 import uvicorn
+import os
 import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Dict
 import signal
 import asyncio
-
 from terminal_handler import TerminalHandler
-from auth import (authenticate_user, create_access_token, verify_token, create_user,
-                  get_user_api_key, update_user_api_key)
+from auth import (authenticate_user, create_access_token, verify_token, create_user, 
+                  get_user_api_key, update_user_api_key, get_user_profile, 
+                  update_user_profile, create_share_link, get_shared_file_info, delete_share_link)
 from file_manager import FileManager
 from ai_explainer import AIExplainer
+from linter import CodeLinter
+from formatter import CodeFormatter
 from config import Config
 
 # Configure logging
@@ -28,6 +31,8 @@ security = HTTPBearer()
 
 # Initialize services
 file_manager = FileManager()
+code_linter = CodeLinter()
+code_formatter = CodeFormatter()
 
 # Pydantic models
 class LoginRequest(BaseModel):
@@ -65,6 +70,36 @@ class AIExplainRequest(BaseModel):
 class APIKeyUpdateRequest(BaseModel):
     api_key: str
 
+class LintRequest(BaseModel):
+    code: str
+    language: str
+    filename: str = None
+
+class FormatRequest(BaseModel):
+    code: str
+    language: str
+
+class ProfileUpdateRequest(BaseModel):
+    profile_picture: str = None
+    bio: str = None
+
+class ShareLinkRequest(BaseModel):
+    project_name: str
+    file_path: str
+
+class DeleteShareRequest(BaseModel):
+    share_id: str
+
+class AIChatRequest(BaseModel):
+    message: str
+    context_current_file: bool = False
+    context_project: bool = False
+    context_terminal: bool = False
+    current_file_content: str = ""
+    current_file_path: str = ""
+    project_name: str = ""
+    terminal_output: str = ""
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 BlackMoon Compiler starting up...")
@@ -84,6 +119,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- THIS IS THE CORRECT STATIC FILE MOUNT ---
 STATIC_DIR = Config.STATIC_DIR
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -147,18 +183,19 @@ async def login(request: LoginRequest):
         user = authenticate_user(request.username, request.password)
         if not user:
             raise HTTPException(status_code=401, detail="Invalid username or password")
-        
+
         token = create_access_token(
             data={"sub": user["username"]},
             remember=request.remember
         )
-        
+
         return {
             "token": token,
             "message": "Login successful",
             "username": user["username"]
         }
     except HTTPException:
+        # Re-raise HTTP exceptions (like 401 for invalid credentials)
         raise
     except Exception as e:
         logger.error(f"Login error: {e}")
@@ -168,9 +205,10 @@ async def login(request: LoginRequest):
 async def signup(request: SignupRequest):
     """Signup endpoint"""
     result = create_user(request.username, request.email, request.password)
+    
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
-    
+
     return {
         "message": result["message"],
         "username": request.username
@@ -182,10 +220,9 @@ async def verify_user_token(credentials: HTTPAuthorizationCredentials = Depends(
     payload = verify_token(credentials.credentials)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-    
     return {"valid": True, "username": payload.get("sub")}
 
-# File Management Endpoints (same as Phase 4)
+# File Management Endpoints
 @app.post("/api/projects/create")
 async def create_project(request: ProjectRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Create a new project"""
@@ -210,7 +247,6 @@ async def get_projects(credentials: HTTPAuthorizationCredentials = Depends(secur
     
     username = payload.get("sub")
     projects = file_manager.get_user_projects(username)
-    
     return {"projects": projects}
 
 @app.delete("/api/projects/{project_name}")
@@ -249,13 +285,13 @@ async def create_folder(request: FolderCreateRequest, credentials: HTTPAuthoriza
     payload = verify_token(credentials.credentials)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-    
+
     username = payload.get("sub")
     result = file_manager.create_folder(username, request.project_name, request.folder_path)
-    
+
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
-    
+
     return result
 
 @app.get("/api/files/{project_name}")
@@ -402,42 +438,204 @@ async def get_ai_status(credentials: HTTPAuthorizationCredentials = Depends(secu
         "gemini_available": ai_explainer.gemini_model is not None
     }
 
-@app.websocket("/api/terminal")
-async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for terminal communication"""
-    connection_id = id(websocket)
+@app.post("/api/ai/chat")
+async def ai_chat(request: AIChatRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """AI chatbot with context awareness"""
+    payload = verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    username = payload.get("sub")
+    user_api_key = get_user_api_key(username)
+    
+    # Build context for AI
+    context_parts = []
+    
+    if request.context_current_file and request.current_file_content:
+        context_parts.append(f"Current file ({request.current_file_path}):\n```\n{request.current_file_content}\n```")
+    
+    if request.context_project and request.project_name:
+        # Get all files in project
+        files_result = file_manager.list_files(username, request.project_name)
+        if files_result["success"]:
+            project_files = []
+            for item in files_result["files"]:
+                if not item.get("is_dir"):
+                    file_result = file_manager.read_file(username, request.project_name, item["path"])
+                    if file_result["success"]:
+                        project_files.append(f"File: {item['path']}\n```\n{file_result['content'][:1000]}...\n```")
+            if project_files:
+                context_parts.append("Project files:\n" + "\n\n".join(project_files[:5]))  # Limit to 5 files
+    
+    if request.context_terminal and request.terminal_output:
+        context_parts.append(f"Terminal output:\n```\n{request.terminal_output[-2000:]}\n```")  # Last 2000 chars
+    
+    # Create prompt with context
+    full_prompt = ""
+    if context_parts:
+        full_prompt = "Context:\n" + "\n\n".join(context_parts) + "\n\n"
+    full_prompt += f"User question: {request.message}\n\nPlease provide a helpful, concise answer:"
+    
+    # Use AIExplainer to get response
+    ai_explainer = AIExplainer(api_key=user_api_key)
     
     try:
-        await websocket.accept()
-        logger.info(f"📱 New WebSocket connection: {connection_id}")
-        
-        try:
-            await websocket.send_text("BLACKMOON_WS_READY\n")
-        except Exception as e:
-            logger.error(f"Failed to send WS ready message: {e}")
-        
-        handler = TerminalHandler(websocket)
-        active_connections[connection_id] = handler
-        
-        while True:
-            try:
-                data = await websocket.receive_text()
-                logger.info(f"📩 Received from {connection_id}: {data[:100]}")
-                await handler.handle_message(data)
-            except WebSocketDisconnect:
-                logger.info(f"📤 WebSocket disconnected: {connection_id}")
-                break
-            except Exception as e:
-                logger.error(f"❌ WebSocket error for {connection_id}: {e}")
-                await websocket.send_text(f"❌ Error: {str(e)}\n")
-    
+        if ai_explainer.gemini_model:
+            response = ai_explainer.gemini_model.generate_content(full_prompt)
+            return {"response": response.text}
+        else:
+            return {"response": "AI chatbot requires a configured Gemini API key. Please set your API key in Settings."}
     except Exception as e:
-        logger.error(f"❌ Connection error {connection_id}: {e}")
-    finally:
-        if connection_id in active_connections:
-            handler = active_connections.pop(connection_id)
-            await handler.cleanup()
-            logger.info(f"🧹 Cleaned up connection: {connection_id}")
+        logger.error(f"AI chat error: {e}")
+        return {"response": f"Sorry, I encountered an error: {str(e)}"}
+
+# Code Linting Endpoint
+@app.post("/api/lint")
+async def lint_code(request: LintRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Lint code and return errors/warnings"""
+    payload = verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    result = code_linter.lint_code(request.code, request.language, request.filename)
+    return result
+
+# Code Formatting Endpoint
+@app.post("/api/format")
+async def format_code(request: FormatRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Format code using language-specific formatter"""
+    payload = verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    result = code_formatter.format_code(request.code, request.language)
+    return result
+
+# User Profile Endpoints
+@app.get("/api/profile")
+async def get_profile(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get current user's profile"""
+    payload = verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    username = payload.get("sub")
+    profile = get_user_profile(username)
+    
+    if not profile:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return profile
+
+@app.post("/api/profile/update")
+async def update_profile(request: ProfileUpdateRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Update user's profile"""
+    payload = verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    username = payload.get("sub")
+    result = update_user_profile(username, request.profile_picture, request.bio)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    return result
+
+# File Sharing Endpoints
+@app.post("/api/share/create")
+async def create_share(request: ShareLinkRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Create a shareable link for a file"""
+    payload = verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    username = payload.get("sub")
+    result = create_share_link(username, request.project_name, request.file_path)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("message", "Failed to create share link"))
+    
+    return result
+
+@app.delete("/api/share/{share_id}")
+async def delete_share(share_id: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Delete a shareable link"""
+    payload = verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    username = payload.get("sub")
+    result = delete_share_link(username, share_id)
+    
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    
+    return result
+
+@app.get("/api/share/list")
+async def list_shares(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """List all shared files for current user"""
+    payload = verify_token(credentials.credentials)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    username = payload.get("sub")
+    from auth import users_db
+    
+    user = users_db.get(username)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    shared_files = user.get("shared_files", {})
+    return {"shares": shared_files}
+
+@app.get("/share/{share_id}")
+async def view_shared_file(share_id: str):
+    """Public endpoint to view a shared file (no authentication required)"""
+    share_info = get_shared_file_info(share_id)
+    
+    if not share_info:
+        raise HTTPException(status_code=404, detail="Shared file not found")
+    
+    # Get the file content
+    username = share_info["username"]
+    project = share_info["project"]
+    file_path = share_info["file_path"]
+    
+    file_result = file_manager.read_file(username, project, file_path)
+    
+    if not file_result["success"]:
+        raise HTTPException(status_code=404, detail="File not found or no longer accessible")
+    
+    return FileResponse("static/share_view.html")
+
+@app.get("/api/share/{share_id}/data")
+async def get_shared_file_data(share_id: str):
+    """Get data for a shared file (public, no auth)"""
+    share_info = get_shared_file_info(share_id)
+    
+    if not share_info:
+        raise HTTPException(status_code=404, detail="Shared file not found")
+    
+    # Get the file content
+    username = share_info["username"]
+    project = share_info["project"]
+    file_path = share_info["file_path"]
+    
+    file_result = file_manager.read_file(username, project, file_path)
+    
+    if not file_result["success"]:
+        raise HTTPException(status_code=404, detail="File not found or no longer accessible")
+    
+    return {
+        "username": username,
+        "profile_picture": share_info["profile_picture"],
+        "bio": share_info["bio"],
+        "file_path": file_path,
+        "code": file_result["content"],
+        "created_at": share_info["created_at"]
+    }
 
 @app.get("/health")
 async def health_check():
@@ -447,6 +645,45 @@ async def health_check():
         "active_connections": len(active_connections),
         "static_files": len(list(STATIC_DIR.iterdir())) if STATIC_DIR.exists() else 0
     }
+
+@app.websocket("/api/terminal")
+async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket endpoint for terminal communication"""
+    connection_id = id(websocket)
+
+    try:
+        await websocket.accept()
+        logger.info(f"📱 New WebSocket connection: {connection_id}")
+        # Proactive handshake message so frontend can verify connectivity
+        try:
+            await websocket.send_text("BLACKMOON_WS_READY\n")
+        except Exception as e:
+            logger.error(f"Failed to send WS ready message: {e}")
+
+        handler = TerminalHandler(websocket)
+        active_connections[connection_id] = handler
+
+        while True:
+            try:
+                data = await websocket.receive_text()
+                logger.info(f"📩 Received from {connection_id}: {data[:100]}")
+                await handler.handle_message(data)
+
+            except WebSocketDisconnect:
+                logger.info(f"📤 WebSocket disconnected: {connection_id}")
+                break
+            except Exception as e:
+                logger.error(f"❌ WebSocket error for {connection_id}: {e}")
+                await websocket.send_text(f"❌ Error: {str(e)}\n")
+
+    except Exception as e:
+        logger.error(f"❌ Connection error {connection_id}: {e}")
+
+    finally:
+        if connection_id in active_connections:
+            handler = active_connections.pop(connection_id)
+            await handler.cleanup()
+            logger.info(f"🧹 Cleaned up connection: {connection_id}")
 
 def signal_handler(signum, frame):
     """Handle shutdown signals"""
@@ -461,11 +698,10 @@ if __name__ == "__main__":
     host = Config.HOST
     logger.info(f"🌐 Starting server on http://{host}:{port}")
     uvicorn.run(
-        "main:app",
-        host=host,
+        "main:app", 
+        host=host, 
         port=port,
-        reload=False,
+        reload=False, # <-- RELOADER IS NOW OFF
         log_level="info"
     )
-
 
