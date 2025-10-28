@@ -77,12 +77,15 @@ def create_user(username: str, email: str, password: str) -> Dict[str, Any]:
         return {"success": False, "message": "Invalid email format"}
     
     try:
-        # Create user
+        # Create user with extended profile fields
         users_db[username] = {
             "username": username,
             "email": email,
             "password_hash": hash_password(password),
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.utcnow().isoformat(),
+            "gemini_api_key": "",  # Per-user Gemini API key
+            "profile_picture": "",  # Profile picture URL/path
+            "bio": ""  # User bio/description
         }
         
         save_users()
@@ -150,6 +153,65 @@ def verify_token(token: str) -> Optional[dict]:
     except jwt.JWTError as e:
         print(f"[AUTH] Token verification error: {e}")
         return None
+
+def get_user_api_key(username: str) -> Optional[str]:
+    """Get user's Gemini API key"""
+    user = users_db.get(username)
+    if user:
+        return user.get("gemini_api_key", "")
+    return None
+
+def update_user_api_key(username: str, api_key: str) -> Dict[str, Any]:
+    """Update user's Gemini API key"""
+    print(f"[AUTH] Updating API key for user: {username}")
+    
+    if username not in users_db:
+        return {"success": False, "message": "User not found"}
+    
+    try:
+        users_db[username]["gemini_api_key"] = api_key
+        save_users()
+        print(f"[AUTH] Successfully updated API key for: {username}")
+        return {"success": True, "message": "API key updated successfully"}
+    
+    except Exception as e:
+        print(f"[AUTH] Error updating API key: {e}")
+        return {"success": False, "message": "Error updating API key"}
+
+def get_user_profile(username: str) -> Optional[Dict[str, Any]]:
+    """Get user profile information (public safe data)"""
+    user = users_db.get(username)
+    if user:
+        return {
+            "username": user.get("username"),
+            "email": user.get("email"),
+            "profile_picture": user.get("profile_picture", ""),
+            "bio": user.get("bio", ""),
+            "created_at": user.get("created_at")
+        }
+    return None
+
+def update_user_profile(username: str, profile_picture: str = None, bio: str = None) -> Dict[str, Any]:
+    """Update user's profile information"""
+    print(f"[AUTH] Updating profile for user: {username}")
+    
+    if username not in users_db:
+        return {"success": False, "message": "User not found"}
+    
+    try:
+        if profile_picture is not None:
+            users_db[username]["profile_picture"] = profile_picture
+        
+        if bio is not None:
+            users_db[username]["bio"] = bio
+        
+        save_users()
+        print(f"[AUTH] Successfully updated profile for: {username}")
+        return {"success": True, "message": "Profile updated successfully"}
+    
+    except Exception as e:
+        print(f"[AUTH] Error updating profile: {e}")
+        return {"success": False, "message": "Error updating profile"}
 
 # Initialize users on import
 load_users()
