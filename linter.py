@@ -11,6 +11,9 @@ class CodeLinter:
         self.linters = {
             'python': self._lint_python,
             'javascript': self._lint_javascript,
+            'c': self._lint_c,
+            'cpp': self._lint_cpp,
+            'c++': self._lint_cpp,
         }
     
     def lint_code(self, code: str, language: str, filename: str = None) -> Dict[str, Any]:
@@ -55,7 +58,7 @@ class CodeLinter:
         return extensions.get(language, 'txt')
     
     def _lint_python(self, code: str, filename: str) -> List[Dict[str, Any]]:
-        """Lint Python code using flake8 with fallback to syntax check"""
+        """Lint Python code using flake8 with fallback"""
         errors = []
         
         # Create temporary file
@@ -64,7 +67,7 @@ class CodeLinter:
             temp_path = f.name
         
         try:
-            # Try flake8 first (lighter and faster than pylint)
+            # Try flake8 first
             try:
                 result = subprocess.run(
                     ['flake8', '--format=json', temp_path],
@@ -87,7 +90,7 @@ class CodeLinter:
                             })
             
             except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError):
-                # Fallback: Try basic Python syntax check
+                # Fallback to syntax check
                 try:
                     compile(code, filename, 'exec')
                 except SyntaxError as e:
@@ -101,7 +104,6 @@ class CodeLinter:
                     })
         
         finally:
-            # Cleanup temporary file
             try:
                 os.unlink(temp_path)
             except:
@@ -113,13 +115,11 @@ class CodeLinter:
         """Lint JavaScript code using ESLint"""
         errors = []
         
-        # Create temporary file
         with tempfile.NamedTemporaryFile(mode='w', suffix='.js', delete=False) as f:
             f.write(code)
             temp_path = f.name
         
         try:
-            # Try eslint
             try:
                 result = subprocess.run(
                     ['eslint', '--format=json', temp_path],
@@ -142,8 +142,109 @@ class CodeLinter:
                             })
             
             except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError):
-                # ESLint not available or failed
                 pass
+        
+        finally:
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+        
+        return errors
+    
+    def _lint_c(self, code: str, filename: str) -> List[Dict[str, Any]]:
+        """Lint C code using gcc syntax check"""
+        errors = []
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.c', delete=False) as f:
+            f.write(code)
+            temp_path = f.name
+        
+        try:
+            # Use gcc for syntax checking with warnings
+            result = subprocess.run(
+                ['gcc', '-fsyntax-only', '-Wall', '-Wextra', temp_path],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.stderr:
+                # Parse gcc output format: file:line:col: severity: message
+                for line in result.stderr.split('\n'):
+                    if ':' in line and ('error' in line.lower() or 'warning' in line.lower()):
+                        parts = line.split(':')
+                        if len(parts) >= 4:
+                            try:
+                                line_num = int(parts[1])
+                                col_num = int(parts[2]) if parts[2].strip().isdigit() else 1
+                                message = ':'.join(parts[3:]).strip()
+                                severity = 'error' if 'error' in line.lower() else 'warning'
+                                
+                                errors.append({
+                                    'line': line_num,
+                                    'column': col_num,
+                                    'message': message,
+                                    'severity': severity,
+                                    'code': '',
+                                    'source': 'gcc'
+                                })
+                            except ValueError:
+                                pass
+        
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+        
+        finally:
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+        
+        return errors
+    
+    def _lint_cpp(self, code: str, filename: str) -> List[Dict[str, Any]]:
+        """Lint C++ code using g++ syntax check"""
+        errors = []
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.cpp', delete=False) as f:
+            f.write(code)
+            temp_path = f.name
+        
+        try:
+            # Use g++ for syntax checking with C++17 standard
+            result = subprocess.run(
+                ['g++', '-fsyntax-only', '-Wall', '-Wextra', '-std=c++17', temp_path],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.stderr:
+                # Parse g++ output
+                for line in result.stderr.split('\n'):
+                    if ':' in line and ('error' in line.lower() or 'warning' in line.lower()):
+                        parts = line.split(':')
+                        if len(parts) >= 4:
+                            try:
+                                line_num = int(parts[1])
+                                col_num = int(parts[2]) if parts[2].strip().isdigit() else 1
+                                message = ':'.join(parts[3:]).strip()
+                                severity = 'error' if 'error' in line.lower() else 'warning'
+                                
+                                errors.append({
+                                    'line': line_num,
+                                    'column': col_num,
+                                    'message': message,
+                                    'severity': severity,
+                                    'code': '',
+                                    'source': 'g++'
+                                })
+                            except ValueError:
+                                pass
+        
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
         
         finally:
             try:
