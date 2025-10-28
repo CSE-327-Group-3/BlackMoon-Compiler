@@ -77,7 +77,7 @@ def create_user(username: str, email: str, password: str) -> Dict[str, Any]:
         return {"success": False, "message": "Invalid email format"}
     
     try:
-        # Create user with extended profile fields
+        # Create user with all fields
         users_db[username] = {
             "username": username,
             "email": email,
@@ -85,7 +85,8 @@ def create_user(username: str, email: str, password: str) -> Dict[str, Any]:
             "created_at": datetime.utcnow().isoformat(),
             "gemini_api_key": "",  # Per-user Gemini API key
             "profile_picture": "",  # Profile picture URL/path
-            "bio": ""  # User bio/description
+            "bio": "",  # User bio/description
+            "shared_files": {}  # Shared files: {share_id: {project, file_path, created_at}}
         }
         
         save_users()
@@ -212,6 +213,69 @@ def update_user_profile(username: str, profile_picture: str = None, bio: str = N
     except Exception as e:
         print(f"[AUTH] Error updating profile: {e}")
         return {"success": False, "message": "Error updating profile"}
+
+def create_share_link(username: str, project_name: str, file_path: str) -> Dict[str, Any]:
+    """Create a shareable link for a file"""
+    import uuid
+    
+    if username not in users_db:
+        return {"success": False, "message": "User not found"}
+    
+    try:
+        share_id = str(uuid.uuid4())[:8]  # Short unique ID
+        
+        # Ensure shared_files exists
+        if "shared_files" not in users_db[username]:
+            users_db[username]["shared_files"] = {}
+        
+        users_db[username]["shared_files"][share_id] = {
+            "project": project_name,
+            "file_path": file_path,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        save_users()
+        print(f"[AUTH] Created share link {share_id} for {username}/{project_name}/{file_path}")
+        return {"success": True, "share_id": share_id}
+    
+    except Exception as e:
+        print(f"[AUTH] Error creating share link: {e}")
+        return {"success": False, "message": "Error creating share link"}
+
+def get_shared_file_info(share_id: str) -> Optional[Dict[str, Any]]:
+    """Get information about a shared file"""
+    for username, user_data in users_db.items():
+        shared_files = user_data.get("shared_files", {})
+        if share_id in shared_files:
+            share_info = shared_files[share_id]
+            return {
+                "username": username,
+                "profile_picture": user_data.get("profile_picture", ""),
+                "bio": user_data.get("bio", ""),
+                "project": share_info["project"],
+                "file_path": share_info["file_path"],
+                "created_at": share_info["created_at"]
+            }
+    return None
+
+def delete_share_link(username: str, share_id: str) -> Dict[str, Any]:
+    """Delete a shareable link"""
+    if username not in users_db:
+        return {"success": False, "message": "User not found"}
+    
+    try:
+        shared_files = users_db[username].get("shared_files", {})
+        if share_id in shared_files:
+            del shared_files[share_id]
+            save_users()
+            print(f"[AUTH] Deleted share link {share_id} for {username}")
+            return {"success": True, "message": "Share link deleted"}
+        else:
+            return {"success": False, "message": "Share link not found"}
+    
+    except Exception as e:
+        print(f"[AUTH] Error deleting share link: {e}")
+        return {"success": False, "message": "Error deleting share link"}
 
 # Initialize users on import
 load_users()
