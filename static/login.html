@@ -3,546 +3,292 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BlackMoon Compiler - Login</title>
+    <title>Login - Online Compiler</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/static/blackmoon.ico">
+    <link rel="shortcut icon" type="image/x-icon" href="/static/blackmoon.ico">
     <style>
-        /* Reset and root variables */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-
         :root {
-            --bg-primary: #0f172a;
-            --bg-secondary: #1e293b;
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --accent: #8b5cf6;
-            --accent-hover: #7c3aed;
-            --error: #ef4444;
-            --success: #10b981;
+            --bg-color: #202124;
+            --surface-color: #2c2d30;
+            --border-color: #444;
+            --text-primary: #e8eaed;
+            --text-secondary: #9aa0a6;
+            --accent-color: #007bff;
         }
-
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, var(--bg-primary) 0%, #1a1f3a 100%);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
             min-height: 100vh;
             display: flex;
-            align-items: center;
             justify-content: center;
-            color: var(--text-primary);
+            align-items: center;
             padding: 20px;
         }
-
-        .container {
+        .login-container {
+            background: var(--surface-color);
+            padding: 40px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
             width: 100%;
             max-width: 400px;
         }
-
-        .auth-card {
-            background: var(--bg-secondary);
-            border-radius: 16px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(139, 92, 246, 0.1);
-        }
-
-        .logo {
+        .login-header {
             text-align: center;
-            margin-bottom: 32px;
+            margin-bottom: 30px;
         }
-
-        .logo h1 {
-            font-size: 28px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 8px;
+        .login-header h1 {
+            color: var(--text-primary);
+            font-size: 24px;
+            margin-bottom: 10px;
         }
-
-        .logo p {
+        .login-header p {
             color: var(--text-secondary);
             font-size: 14px;
         }
-
-        /* Form styling */
         .form-group {
             margin-bottom: 20px;
         }
-
-        label {
+        .form-group label {
             display: block;
+            color: var(--text-secondary);
+            font-weight: 500;
             margin-bottom: 8px;
             font-size: 14px;
-            font-weight: 500;
-            color: var(--text-primary);
         }
-
-        input {
+        .form-group input {
             width: 100%;
-            padding: 12px 16px;
-            background: var(--bg-primary);
-            border: 2px solid transparent;
-            border-radius: 8px;
-            color: var(--text-primary);
+            padding: 12px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
             font-size: 14px;
-            transition: all 0.3s ease;
+            background: #3c3d40;
+            color: var(--text-primary);
+            transition: border-color 0.2s ease;
         }
-
-        input::placeholder {
-            color: var(--text-secondary);
-            opacity: 0.6;
-        }
-
-        input:focus {
+        .form-group input:focus {
             outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.1);
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(0,123,255, 0.2);
         }
-
-        input.error {
-            border-color: var(--error);
+        .password-container {
+            position: relative;
         }
-
-        /* Button styling */
-        .btn {
-            width: 100%;
-            padding: 14px;
-            background: var(--accent);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
+        .toggle-password {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
             cursor: pointer;
-            transition: all 0.3s ease;
+            color: var(--text-secondary);
+            font-size: 18px;
+            user-select: none;
+        }
+        .remember-forgot {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        .remember-me {
             display: flex;
             align-items: center;
-            justify-content: center;
             gap: 8px;
         }
-
-        .btn:hover:not(:disabled) {
-            background: var(--accent-hover);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 16px rgba(139, 92, 246, 0.3);
+        .remember-me input[type="checkbox"] {
+            cursor: pointer;
         }
-
-        .btn:active:not(:disabled) {
-            transform: translateY(0);
+        .forgot-password {
+            color: var(--accent-color);
+            text-decoration: none;
+            font-weight: 500;
         }
-
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
+        .forgot-password:hover {
+            text-decoration: underline;
         }
-
-        /* Loading spinner */
-        .spinner {
-            width: 16px;
-            height: 16px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 0.6s linear infinite;
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
         }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .login-btn:hover {
+            background-color: #0056b3;
         }
-
-        /* Error message styling */
-        .error-message {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid var(--error);
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 20px;
-            color: var(--error);
-            font-size: 14px;
-            display: none;
-        }
-
-        .error-message.show {
-            display: block;
-            animation: slideDown 0.3s ease;
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* Success message */
-        .success-message {
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid var(--success);
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 20px;
-            color: var(--success);
-            font-size: 14px;
-            display: none;
-        }
-
-        .success-message.show {
-            display: block;
-            animation: slideDown 0.3s ease;
-        }
-
-        /* Toggle between forms */
-        .toggle-form {
+        .signup-link {
             text-align: center;
-            margin-top: 24px;
+            margin-top: 25px;
             color: var(--text-secondary);
             font-size: 14px;
         }
-
-        .toggle-form a {
-            color: var(--accent);
+        .signup-link a {
+            color: var(--accent-color);
             text-decoration: none;
-            font-weight: 600;
-            cursor: pointer;
-            transition: color 0.3s ease;
+            font-weight: 500;
         }
-
-        .toggle-form a:hover {
-            color: var(--accent-hover);
+        .signup-link a:hover {
             text-decoration: underline;
         }
-
-        /* Hide inactive forms */
-        .hidden {
+        .error-message, .success-message {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
             display: none;
         }
-
-        /* Password strength indicator */
-        .password-strength {
-            height: 4px;
-            background: var(--bg-primary);
-            border-radius: 2px;
-            margin-top: 8px;
-            overflow: hidden;
-            display: none;
+        .error-message {
+            background: rgba(220, 53, 69, 0.1);
+            color: #f8d7da;
+            border: 1px solid #dc3545;
         }
-
-        .password-strength-bar {
-            height: 100%;
-            width: 0%;
-            transition: all 0.3s ease;
-            border-radius: 2px;
-        }
-
-        .strength-weak {
-            width: 33%;
-            background: var(--error);
-        }
-
-        .strength-medium {
-            width: 66%;
-            background: #f59e0b;
-        }
-
-        .strength-strong {
-            width: 100%;
-            background: var(--success);
-        }
-
-        /* Responsive design */
-        @media (max-width: 480px) {
-            .auth-card {
-                padding: 30px 24px;
-            }
-
-            .logo h1 {
-                font-size: 24px;
-            }
+        .success-message {
+            background: rgba(40, 167, 69, 0.1);
+            color: #d4edda;
+            border: 1px solid #28a745;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="auth-card">
-            <div class="logo">
-                <h1>🌙 BlackMoon</h1>
-                <p>Code Compiler Platform</p>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>Welcome Back</h1>
+            <p>Login to the Online Compiler</p>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+        <div class="success-message" id="successMessage"></div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" placeholder="Enter your username" required>
             </div>
-
-            <!-- Error/Success Messages -->
-            <div id="errorMessage" class="error-message"></div>
-            <div id="successMessage" class="success-message"></div>
-
-            <!-- Login Form -->
-            <form id="loginForm">
-                <div class="form-group">
-                    <label for="loginUsername">Username</label>
-                    <input type="text" id="loginUsername" placeholder="Enter your username" required>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div class="password-container">
+                    <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                    <span class="toggle-password" onclick="togglePassword()">👁️</span>
                 </div>
-
-                <div class="form-group">
-                    <label for="loginPassword">Password</label>
-                    <input type="password" id="loginPassword" placeholder="Enter your password" required>
-                </div>
-
-                <button type="submit" class="btn" id="loginBtn">
-                    <span id="loginBtnText">Sign In</span>
-                </button>
-            </form>
-
-            <div class="toggle-form">
-                Don't have an account? <a id="showRegister">Sign Up</a>
             </div>
-
-            <!-- Register Form (Initially Hidden) -->
-            <form id="registerForm" class="hidden">
-                <div class="form-group">
-                    <label for="registerUsername">Username</label>
-                    <input type="text" id="registerUsername" placeholder="Choose a username" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="registerEmail">Email</label>
-                    <input type="email" id="registerEmail" placeholder="Enter your email" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="registerPassword">Password</label>
-                    <input type="password" id="registerPassword" placeholder="Create a password" required>
-                    <div class="password-strength" id="passwordStrength">
-                        <div class="password-strength-bar" id="strengthBar"></div>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="registerConfirmPassword">Confirm Password</label>
-                    <input type="password" id="registerConfirmPassword" placeholder="Confirm your password" required>
-                </div>
-
-                <button type="submit" class="btn" id="registerBtn">
-                    <span id="registerBtnText">Create Account</span>
-                </button>
-            </form>
-
-            <div id="registerToggle" class="toggle-form hidden">
-                Already have an account? <a id="showLogin">Sign In</a>
+			<div class="remember-forgot">
+                <label class="remember-me">
+                    <input type="checkbox" id="remember" name="remember">
+                    <span>Remember me</span>
+                </label>
             </div>
+            <button type="submit" class="login-btn">Login</button>
+        </form>
+        <div class="signup-link">
+            Don't have an account? <a href="/static/signup.html">Sign up</a>
         </div>
     </div>
-
+    
     <script>
-        // DOM elements
-        const loginForm = document.getElementById('loginForm');
-        const registerForm = document.getElementById('registerForm');
-        const showRegisterLink = document.getElementById('showRegister');
-        const showLoginLink = document.getElementById('showLogin');
-        const errorMessage = document.getElementById('errorMessage');
-        const successMessage = document.getElementById('successMessage');
-        const loginBtn = document.getElementById('loginBtn');
-        const registerBtn = document.getElementById('registerBtn');
-        const loginBtnText = document.getElementById('loginBtnText');
-        const registerBtnText = document.getElementById('registerBtnText');
-
-        // Password strength indicator
-        const registerPassword = document.getElementById('registerPassword');
-        const passwordStrength = document.getElementById('passwordStrength');
-        const strengthBar = document.getElementById('strengthBar');
-
-        // Toggle between login and register forms
-        showRegisterLink.addEventListener('click', () => {
-            loginForm.classList.add('hidden');
-            loginForm.previousElementSibling.classList.add('hidden');
-            registerForm.classList.remove('hidden');
-            document.getElementById('registerToggle').classList.remove('hidden');
-            clearMessages();
-        });
-
-        showLoginLink.addEventListener('click', () => {
-            registerForm.classList.add('hidden');
-            document.getElementById('registerToggle').classList.add('hidden');
-            loginForm.classList.remove('hidden');
-            loginForm.previousElementSibling.classList.remove('hidden');
-            clearMessages();
-        });
-
-        // Password strength checker
-        registerPassword.addEventListener('input', (e) => {
-            const password = e.target.value;
+        // Toggle password visibility
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.querySelector('.toggle-password');
             
-            if (password.length === 0) {
-                passwordStrength.style.display = 'none';
-                return;
-            }
-
-            passwordStrength.style.display = 'block';
-            const strength = calculatePasswordStrength(password);
-            
-            strengthBar.className = 'password-strength-bar';
-            if (strength < 40) {
-                strengthBar.classList.add('strength-weak');
-            } else if (strength < 70) {
-                strengthBar.classList.add('strength-medium');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.textContent = '🙈';
             } else {
-                strengthBar.classList.add('strength-strong');
+                passwordInput.type = 'password';
+                toggleIcon.textContent = '👁️';
+            }
+        }
+
+        // FIXED: Check if already logged in ONCE on load
+        window.addEventListener('load', () => {
+            const token = localStorage.getItem('authToken');
+            if (token) {
+                // Verify token with backend
+                fetch('/api/verify', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        // Already logged in, redirect to app
+                        window.location.href = '/app';
+                    }
+                })
+                .catch(err => console.error('Token verification failed:', err));
             }
         });
 
-        function calculatePasswordStrength(password) {
-            let strength = 0;
-            
-            if (password.length >= 8) strength += 25;
-            if (password.length >= 12) strength += 25;
-            if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength += 20;
-            if (/\d/.test(password)) strength += 15;
-            if (/[^a-zA-Z0-9]/.test(password)) strength += 15;
-            
-            return strength;
-        }
-
-        // Show error message
-        function showError(message) {
-            errorMessage.textContent = message;
-            errorMessage.classList.add('show');
-            successMessage.classList.remove('show');
-            
-            setTimeout(() => {
-                errorMessage.classList.remove('show');
-            }, 5000);
-        }
-
-        // Show success message
-        function showSuccess(message) {
-            successMessage.textContent = message;
-            successMessage.classList.add('show');
-            errorMessage.classList.remove('show');
-            
-            setTimeout(() => {
-                successMessage.classList.remove('show');
-            }, 5000);
-        }
-
-        // Clear all messages
-        function clearMessages() {
-            errorMessage.classList.remove('show');
-            successMessage.classList.remove('show');
-        }
-
-        // Login form submission
-        loginForm.addEventListener('submit', async (e) => {
+        // Handle login form submission
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const username = document.getElementById('loginUsername').value;
-            const password = document.getElementById('loginPassword').value;
-
-            // Show loading state
-            loginBtn.disabled = true;
-            loginBtnText.innerHTML = '<div class="spinner"></div> Signing in...';
-
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const remember = document.getElementById('remember').checked;
+            
+            const errorMsg = document.getElementById('errorMessage');
+            const successMsg = document.getElementById('successMessage');
+            
+            // Hide previous messages
+            errorMsg.style.display = 'none';
+            successMsg.style.display = 'none';
+            
             try {
+                // Send login request to your backend
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ username, password })
+                    body: JSON.stringify({
+                        username: username,
+                        password: password,
+                        remember: remember
+                    })
                 });
-
+                
                 const data = await response.json();
-
+                
                 if (response.ok) {
-                    localStorage.setItem('authToken', data.token);
-                    showSuccess('Login successful! Redirecting...');
+                    // Store token if provided
+                    if (data.token) {
+                        localStorage.setItem('authToken', data.token);
+                    }
                     
+                    // Show success message
+                    successMsg.textContent = 'Login successful! Redirecting...';
+                    successMsg.style.display = 'block';
+                    
+                    // Redirect to main page
                     setTimeout(() => {
-                        window.location.href = '/compiler.html';
+                        window.location.href = '/app';
                     }, 1000);
                 } else {
-                    showError(data.detail || 'Login failed. Please check your credentials.');
-                    loginBtn.disabled = false;
-                    loginBtnText.textContent = 'Sign In';
+                    // Show error message
+                    errorMsg.textContent = data.detail || data.message || 'Login failed. Please check your credentials.';
+                    errorMsg.style.display = 'block';
                 }
             } catch (error) {
                 console.error('Login error:', error);
-                showError('An error occurred during login. Please try again.');
-                loginBtn.disabled = false;
-                loginBtnText.textContent = 'Sign In';
+                errorMsg.textContent = 'Network error. Please try again.';
+                errorMsg.style.display = 'block';
             }
         });
-
-        // Register form submission
-        registerForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const username = document.getElementById('registerUsername').value;
-            const email = document.getElementById('registerEmail').value;
-            const password = document.getElementById('registerPassword').value;
-            const confirmPassword = document.getElementById('registerConfirmPassword').value;
-
-            // Validate password match
-            if (password !== confirmPassword) {
-                showError('Passwords do not match!');
-                return;
-            }
-
-            // Validate password strength
-            if (password.length < 6) {
-                showError('Password must be at least 6 characters long!');
-                return;
-            }
-
-            // Show loading state
-            registerBtn.disabled = true;
-            registerBtnText.innerHTML = '<div class="spinner"></div> Creating account...';
-
-            try {
-                const response = await fetch('/api/register', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ username, email, password })
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    showSuccess('Account created successfully! Please sign in.');
-                    
-                    // Reset form
-                    registerForm.reset();
-                    passwordStrength.style.display = 'none';
-                    
-                    // Switch to login form after 2 seconds
-                    setTimeout(() => {
-                        registerForm.classList.add('hidden');
-                        document.getElementById('registerToggle').classList.add('hidden');
-                        loginForm.classList.remove('hidden');
-                        loginForm.previousElementSibling.classList.remove('hidden');
-                    }, 2000);
-                } else {
-                    showError(data.detail || 'Registration failed. Please try again.');
-                }
-            } catch (error) {
-                console.error('Registration error:', error);
-                showError('An error occurred during registration. Please try again.');
-            } finally {
-                registerBtn.disabled = false;
-                registerBtnText.textContent = 'Create Account';
-            }
-        });
-
-        // Check if already logged in
-        if (localStorage.getItem('authToken')) {
-            window.location.href = '/compiler.html';
-        }
     </script>
 </body>
 </html>
-
